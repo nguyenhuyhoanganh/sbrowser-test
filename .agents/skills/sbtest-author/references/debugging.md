@@ -26,7 +26,7 @@ Every failed test writes `artifacts/test-results/failures/<test folder>/` (lates
 `--record` writes `videos/<test folder>.mp4` instead: the same frames and the running step as a
 caption. Use either to see what a test really touched: a frame on the wrong element = a
 wrong locator or ui-map entry even when the test passes. `results.json` holds every test's
-outcome, steps and evidence paths (used by the report and the Confluence page).
+outcome, steps and evidence paths (used by the report and share/).
 
 The run output names the failed step under each `[FAIL]`; `run.py --raw` shows pytest's own
 output instead (traceback, a `sbtest steps` section, captured logs). The chromedriver log is

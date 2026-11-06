@@ -2,7 +2,7 @@
 
 ```
 run.py                         CLI: --all | --feature a,b | --case ID,ID, --sanity, --reruns, --record,
-                               --screenshot-steps, --confluence-steps, --raw
+                               --screenshot-steps, --share-media, --raw
 setup.bat                      prepare a machine: venv + requirements, browser.exe, doctor check
                                (gets chromedriver) -> READY / NOT READY; tests run separately
 config/
@@ -25,11 +25,11 @@ sbtest/
   data/                        BookmarksSeed, load_data("feature"), files.* generators
   server/local_site.py         LocalSite: resources/site/ + dynamic routes (page, download, upload, auth...)
   reporting/                   evidence (failure files, step screenshots), results.json,
-                               confluence_export (folder to upload with the Confluence skill)
+                               share_export (share/: files to put on Confluence or Jira)
   steps.py                     step("N. ...", expected=...) context manager
   pytest_plugin.py             options, markers, fixtures, filters, evidence hooks
   tools/                       setup (second half of setup.bat), doctor, dom, uia_dump, explore,
-                               coverage, case_overview, report, confluence_export, summary,
+                               coverage, case_overview, report, share_export, summary,
                                console (the readable [ OK ]/[WARN]/[FAIL] output)
 tests/
   features/<feature>/          one folder per feature (addons, bookmarks, downloads, history,
@@ -45,7 +45,7 @@ resources/
   profiles/                    profile templates for @browser(profile=...)
   site/                        local pages: form, inputs, mouse, upload, dialogs, dragdrop, popups,
                                downloads, frames, permissions, toast, shadow, pages/1..3
-artifacts/test-results/        latest run only: report/, confluence/, failures/, steps/, logs/,
+artifacts/test-results/        latest run only: report/, share/, failures/, steps/, logs/,
                                results.json, junit.xml (doctor/, explore/<topic>/, explore/scratch-run/
                                beside it; framework and scratch runs never write here)
 ```

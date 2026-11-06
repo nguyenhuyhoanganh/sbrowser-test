@@ -13,11 +13,11 @@
 python run.py --all                                # every feature (tests/features)
 python run.py --feature addons,bookmarks           # addons, bookmarks, downloads, history, general
 python run.py --case ADD-001,BM-004
-python run.py --sanity                             # quick pass (can be added to --feature)
+python run.py --sanity                             # quick pass (with --feature: its sanity cases only)
 python run.py --all --reruns 1                     # re-run failures once to separate flakes
 python run.py --all --record                       # a video per test (step caption, framed clicks)
 python run.py --all --screenshot-steps             # picture per interaction (framed) + per step
-python run.py --all --record --confluence-steps all   # videos/pictures of every case on the page
+python run.py --all --record --share-media all     # share/ gets the video of every case, not only failed
 python run.py --all --no-native                    # skip tests that drive the real mouse/keyboard
 python run.py --list                               # cases and automation status per feature
 python run.py --feature downloads -- -x -k pause   # raw pytest args after --
@@ -25,9 +25,9 @@ python run.py --case BM-004 --raw                  # pytest's own output (traceb
 python run.py --case BM-004 --keep-profile         # keep the profile folder to open it by hand
 ```
 
-Every command takes `--exe "<path>"` (the build to test; default `browser.exe` of
-`config/local.yaml`). `--confluence-steps failed|all|none` picks which cases get their video /
-step pictures on the Confluence page (default `failed`).
+The build to test is `browser.exe` of `config/local.yaml` (saved by `setup.bat --save`);
+`--exe "<path>"` on a command overrides it. `--share-media failed|all|none` picks which cases
+get their video / step pictures in `share/attachments/` (default `failed`).
 
 Browser reuse: each test gets a fresh browser by default. `--scope module` reuses one per
 test file (much faster; the tests of a file then share state) - not for the build verdict
@@ -54,7 +54,7 @@ The folder holds the latest run only: it is emptied when the next run starts. `<
 |------|---------|
 | `report/index.html` | **the build's sanity report**: verdict, build info, one row per case (steps, expected, result, screenshot; video and "Step pictures" when taken); the `report/` folder can be zipped and shared |
 | `report/report.md` | same report in Markdown |
-| `confluence/` | the same report as a Confluence page: `manifest.json` (title, attachments), `page.storage.html`, `page.md`, `attachments/` (one screenshot per test + videos / step pictures of the cases chosen with `--confluence-steps`) |
+| `share/` | the files to share the run on Confluence or Jira: `manifest.json` (`title`, `attachments`), `page.storage.html` (Confluence page body), `page.md` (same body in Markdown), `attachments/` (flat: `<case>_<test>.jpg` screenshot of every test + `<case>_...` videos / step pictures of the cases chosen with `--share-media`) |
 | `results.json` | every test: outcome, case ids, steps, failed step, error, screenshot, evidence paths, browser start times |
 | `failures/<test folder>/` | `failure.txt` (read first), `page.png` (failing element outlined in red), `screen.png` (browser windows incl. native dialogs), `dom.txt`, `page.html`, `uia.txt`, `alert.txt` |
 | `results/<test folder>.png` | final screenshot of every passed test (used by the report) |
@@ -68,7 +68,7 @@ The folder holds the latest run only: it is emptied when the next run starts. `<
 
 ```
 python -m sbtest.tools.summary            # the run's summary again (--json: same data as JSON)
-python -m sbtest.tools.report [--open]    # rebuild report/ and confluence/ (e.g. after editing case docs)
+python -m sbtest.tools.report [--open]    # rebuild report/ and share/ (e.g. after editing case docs)
 python -m sbtest.tools.case_overview      # refresh tests/features/TESTCASES.md with the latest results
 python -m sbtest.tools.coverage           # which case IDs are automated, missing or orphaned
 ```

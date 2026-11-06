@@ -1,59 +1,67 @@
 ---
 name: sbtest-author
-description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per area under tests/features) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Selenium web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
+description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per area under tests/features) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Selenium web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
 ---
 
 # Creating tests: cases in, stable tests out
 
 Paths: `references/...` and `templates/...` are in this skill's folder
 (`.agents/skills/sbtest-author/`); every other path is relative to the repo root. Commands run
-in the repo root. `python` means the repo's Python, `.venv\Scripts\python.exe`.
+in the repo root.
 
 **Never guess a label, selector or behaviour**: look at the real build, then write.
 Running a whole build and reporting on it is the `sbtest-run` skill, not this one.
 
-## Start: ask, prepare, then work
-
-Do these in order before any workflow. Ask in the user's language (use your agent's question
-tool when it has one) and **wait for each answer**. Never ask again for what the user already
-gave.
-
 ```
-- [ ] 1 workflow picked, its inputs complete   - [ ] 2 exe path known
-- [ ] 3 setup READY                              - [ ] 4 user told: real mouse and keyboard
+- [ ] Start: exe path confirmed, setup READY, user told about mouse and keyboard
+- [ ] workflow picked, its inputs complete
 ```
 
-1. **Pick the workflow and ask for what is missing:**
+Begin a workflow only when both are ticked. The Start question and the workflow questions
+can go in one message.
 
-   | The user gives | Workflow | Ask for (only what is missing) |
-   |---|---|---|
-   | test cases as a Confluence/Jira link, pasted text, a table, an export | A, then B per case | the source (a link but no Confluence/Jira skill available -> ask the user to paste the content); the feature when the source does not say |
-   | a case ID, or a plain request ("write a test for ...", "check that ...") | B | the case ID (the team's - never invent one); for a new case also its steps, expected result and feature |
-   | a test that broke ("BM-114 fails on the new build") | C | the case ID or test name; the error message if the user has one |
+## Start: exe path and setup
 
-2. **The exe.** `config/local.yaml` exists and has `browser.exe` -> show that path and ask the
-   user to confirm it or give another. Otherwise ask for the full path of the browser's exe
-   (`SamsungInternet.exe`; the file name's case does not matter).
-3. **Setup** (Windows only; on another OS stop and tell the user). Run in the repo root:
+The same in `sbtest-author` and `sbtest-run`. Ask in the user's language (use your agent's
+question tool when it has one) and **wait for each answer**; never guess a path. Never ask
+again for what the user already gave.
+
+1. **Exe path.** `config/local.yaml` has `browser.exe` -> show that path and ask the user to
+   confirm it or give another. Otherwise (also when the user says "this build" without a
+   path) ask for the full path of the build's `SamsungInternet.exe` (the file name's case
+   does not matter).
+2. **Setup** (Windows only; on another OS stop and tell the user). In the repo root:
 
    | shell | command |
    |---|---|
    | PowerShell, cmd | `.\setup.bat --exe "<path>" --save` |
    | Git Bash | `./setup.bat --exe "<path>" --save` |
 
-   It creates `.venv`, installs the packages, saves the exe as the default of every command
-   below, downloads chromedriver and checks the machine. The last line decides:
-   - **READY** (with or without WARN lines) -> go on; tell the user the WARN lines.
+   It creates `.venv`, installs the packages, saves the exe in `config/local.yaml` as the
+   default of every later command, downloads chromedriver and checks the machine. The last
+   line decides:
+   - **READY** (with or without WARN lines) -> go on; leave WARN lines as they are (do not
+     close the user's programs) and tell the user about them in the final answer.
    - **NOT READY** -> each `[FAIL]` line is followed by a `fix:` line: apply it, run setup
      again. Never go on with NOT READY.
 
-   Later in the same session, after a change to the machine: `python -m sbtest.tools.doctor`.
-4. **Tell the user** that the next steps drive the real mouse and keyboard: keep the Windows
-   desktop unlocked and visible, hands off while a test runs.
+   The "Next" commands setup prints are only examples. Later in the same session, after a
+   change to the machine: `python -m sbtest.tools.doctor`.
+3. **Tell the user** that tests drive the real mouse and keyboard: keep the Windows desktop
+   unlocked and visible, hands off while a test runs.
 
-Start the workflow only when 1-3 are done. How to call the repo's Python:
-`.\.venv\Scripts\python.exe` (PowerShell), `.venv\Scripts\python` (cmd),
-`.venv/Scripts/python.exe` (Git Bash).
+`python` in every command means the repo's Python: `.\.venv\Scripts\python.exe`
+(PowerShell), `.venv\Scripts\python` (cmd), `.venv/Scripts/python.exe` (Git Bash).
+
+## Pick the workflow
+
+Ask for what is missing:
+
+| The user gives | Workflow | Ask for (only what is missing) |
+|---|---|---|
+| test cases as a Confluence/Jira link, pasted text, a table, an export | A, then B per case | the source (a link but no Confluence/Jira skill available -> ask the user to paste the content); the feature when the source does not say |
+| a case ID, or a plain request ("write a test for ...", "check that ...") | B | the case ID (the team's - never invent one); for a new case also its steps, expected result and feature |
+| a test that broke ("BM-114 fails on the new build") | C | the case ID or test name; the error message if the user has one |
 
 ## Hard rules (every workflow)
 
@@ -123,7 +131,7 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
      there or in feature-notes -> no scratch test: at most one look at an internal page with
      `python -m sbtest.tools.dom <page> --interactive` (with data:
      `--seed-bookmarks resources/data/bookmarks.yaml:seed_basic`, `--extension
-     resources/extensions/sample_addon`); the step pictures of 5b confirm the rest.
+     resources/extensions/sample_addon`); the step pictures of B5b confirm the rest.
    - Otherwise (a step with no row, a label nobody wrote down, an unknown bubble or dialog) ->
      a scratch test: copy `templates/explore_template.py` to
      `tests/_scratch/test_explore_<topic>.py`, edit, run
@@ -139,8 +147,10 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
 3. **Map** each step to a call with `references/action-catalog.md`. No row fits -> add a
    page-object method (`sbtest/pages/*.py`, `references/page-objects.md`) or a ui-map entry
    (`config/native_ui.yaml`, `references/native-ui.md`), then a row to the catalogue.
-4. **Write** the test in `tests/features/<feature>/test_<feature>_<area>.py` (the file that
-   holds the tests of the same case doc) from `templates/test_template.py`, shaped as in
+4. **Write** the test in the test file that the `- Automated:` lines of the same case doc
+   name (e.g. `bookmarks/toolbar.md` -> `test_bookmarks_toolbar.py`); a doc with no automated
+   case yet -> a new `tests/features/<feature>/test_<feature>_<area>.py`. Start from
+   `templates/test_template.py`, shaped as in
    `references/conventions.md`: each case step = `with step("N. ...", expected="..."):`, the
    case's Expected = assertions on state.
 5. **Prove it.** Each run empties `artifacts/test-results/` first: look at a run's evidence
@@ -165,13 +175,18 @@ build really shows, and say so in your report.
 
 1. `python run.py --case <ID>`; read `failure.txt`, `screen.png`, `page.png` before editing
    anything (what each evidence file holds and typical errors: `references/debugging.md`).
-2. Decide what changed:
-   - the product's behaviour -> report it with the evidence; leave the test as it is;
-   - markup or labels, same behaviour -> dump the page (`python -m sbtest.tools.dom <page>`)
-     or the browser UI (`python -m sbtest.tools.uia_dump`), fix the page object or
-     `config/native_ui.yaml`; keep method names, parameters and return types
-     (`references/page-objects.md`, "When a page changed");
-   - passes on re-run -> a race: find the missing wait, stale list read or shared data.
+2. Give it one label (the same labels as the `sbtest-run` skill):
+   - **regression** - the behaviour differs from the case's Expected, or the browser crashed
+     (`BrowserCrashed`, `invalid session id`) -> report it with the evidence; leave the test
+     as it is;
+   - **outdated test** - same behaviour, different markup or labels -> dump the page
+     (`python -m sbtest.tools.dom <page>`) or the browser UI (`python -m sbtest.tools.uia_dump`),
+     fix the page object or `config/native_ui.yaml`; keep method names, parameters and return
+     types (`references/page-objects.md`, "When a page changed");
+   - **environment** - locked desktop, another window in front, driver mismatch -> fix the
+     machine (`python -m sbtest.tools.doctor`), not the test;
+   - **flaky** - passes when run again -> a race: find the missing wait, stale list read or
+     shared data.
 3. Record the build difference in `references/feature-notes.md` and in the page object's
    STATUS line.
 4. Prove it as in B5. Many tests broken after a Chromium merge: `references/debugging.md`,
@@ -195,9 +210,8 @@ The tests in `tests/features/` are working examples of every interaction.
 
 ## Before you finish
 
-Changed any file under `sbtest/` or `.agents/skills/` -> `python -m pytest tests/framework -q`
-must be green. Report
-to the user: cases written or changed, the test and its runs (4x green, feature run), new
+Changed any file under `sbtest/` -> `python -m pytest tests/framework -q` must be green.
+Report to the user: cases written or changed, the test and its runs (4x green, feature run), new
 page-object methods / ui-map keys / catalogue rows, labels that differ from the case's
 wording, product differences (with evidence paths), cases marked not automatable. Do not
 commit unless the user asks.
