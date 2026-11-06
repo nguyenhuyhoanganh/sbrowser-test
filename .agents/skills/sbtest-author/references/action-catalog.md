@@ -71,7 +71,7 @@ Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, 
 | Request | Do |
 |---|---|
 | Ctrl+D -> toast "Page bookmarked." / "Bookmark added to ..." | `native.hotkey("^d"); toast = native.wait_dialog("bookmark_added")` |
-| toast > Edit -> rename | click Edit at once (the toast closes after a few seconds): `toast.click("Edit")`, field `native.element("bookmark_edit_name", in_main=False)` (focus, `native.hotkey("^a", focus=False)`, `native.type_text(...)`), `native.click("bookmark_edit_save")`; read a field: `native.element("bookmark_edit_url", in_main=False).get_value()` |
+| toast > Edit -> rename | click Edit at once (the toast closes after a few seconds): `toast.click("Edit")`; `field = native.element("bookmark_edit_name", in_main=False)`, `field.set_focus()`, `native.hotkey("^a", focus=False)`, `native.type_text("New name")`, `native.click("bookmark_edit_save")`; read a field: `native.element("bookmark_edit_url", in_main=False).get_value()` |
 | is the page bookmarked (star) | helper `def star(): native.focus_page(); return native.exists("bookmark_star_filled")`, then `web.wait_until(star)` / `web.wait_until(lambda: not star())` - the star only shows while the page has the focus (feature-notes, Bookmarks) |
 | remove with the star | `native.wait_dialog_gone("bookmark_added")` (after a Ctrl+D), then `native.click("bookmark_star_filled")` |
 | Bookmarks panel (toolbar) | `native.click("bookmarks_button")`; folder `native.click("bookmarks_panel_folder", name="Bookmark bar")`; bookmark `native.click("bookmarks_panel_item", name="X")`; buttons `"bookmarks_panel_add_page"`, `"bookmarks_panel_create_folder"`, `"bookmarks_panel_expand"` (opens the manager) |

@@ -73,7 +73,8 @@ based on, from that version on). Record here what a new build changes.
   until the star shows, focusing the page again while it does not.
 - The "Page bookmarked." toast closes by itself after a few seconds: click its "Edit" right
   away (no `focus_page()` or long star wait in between; check the star with `native.exists`).
-- Toast "Edit" -> edit bubble: fields read "Name" / "Web address" on screen, their UIA names are
+- Toast "Edit" -> an "Edit bookmark" dialog (cases may call it a bubble): fields read "Name" /
+  "Web address" on screen, their UIA names are
   "Bookmark name" / "Bookmark URL" (ui map `bookmark_edit_name` / `_url`; URL shown without
   `http://`), "Create folder in selected folder", Save / Cancel. Toast text is "Page
   bookmarked." or "Bookmark added to <folder>" (page already bookmarked elsewhere).

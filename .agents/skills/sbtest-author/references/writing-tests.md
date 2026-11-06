@@ -41,7 +41,9 @@ def test_delete_and_undo(pages):
 - Test name: `test_<what_it_verifies>` in snake case, not the ID. One test function per case
   ID; product checks always carry an ID.
 - Step titles start with the case's step number(s): `"2-3. ..."` when merged, `"2a. ..."` /
-  `"2b. ..."` when one case step is split (a framework test enforces the numbering).
+  `"2b. ..."` when one case step is split (a framework test enforces the numbering). Setup
+  that is not a case step (open the page a precondition needs, wait for its state) goes
+  before the first `with step(...)`, in no step - never a step "0.".
 - `expected=` copies the case's Expected for that step; the checks of that Expected go inside
   the step they verify.
 - Assertions: plain `assert` with a clear left side; for "eventually" use a `wait_*` (it
