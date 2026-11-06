@@ -250,3 +250,17 @@ def test_start_page_url_and_first_open_skips_the_reload(tmp_path):
     nav.open("chrome://history")      # already there: no reload
     nav.open("chrome://history")      # later opens load as usual
     assert gets == ["chrome://history"]
+
+
+def test_setup_save_makes_the_exe_the_default(tmp_path):
+    import yaml
+
+    from sbtest.tools.setup import ensure_exe
+
+    exe = tmp_path / "SamsungInternet.exe"
+    exe.write_bytes(b"")
+    local = tmp_path / "local.yaml"
+    assert ensure_exe(str(exe), local=local) == str(exe) and not local.exists()   # check only
+    assert ensure_exe(str(exe), save=True, local=local) == str(exe)
+    assert yaml.safe_load(local.read_text(encoding="utf-8"))["browser"]["exe"] == str(exe)
+    assert ensure_exe(str(tmp_path / "missing.exe"), save=True, local=local) is None

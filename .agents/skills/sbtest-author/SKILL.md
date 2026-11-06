@@ -9,17 +9,53 @@ You work on the Windows machine that has the browser. **Never guess a label, sel
 behaviour**: look at the real build, then write. This is how every test in this repo was made.
 Running a build, triaging a run and the Confluence report: the `sbtest-run` skill.
 
-Commands run in the repo root; `python` means `.venv\Scripts\python.exe` (created by
-`setup.bat`). Agent shells often do not run programs from the current folder: keep the `.\`
-(PowerShell, cmd) or `./` (Git Bash) in front of `setup.bat` and the venv path.
+## Start: ask, prepare, then work
 
-## Pick the workflow
+Do these before any workflow, in this order. Ask in the user's language; use your agent's
+question tool when it has one, else plain text, and **wait for each answer** - never guess a
+path, an ID or a case. Never ask again for what the user already gave.
 
-| You have | Do |
-|---|---|
-| test cases as a Confluence/Jira link, pasted text, a table, an export | A, then B for each case |
-| a case ID, or a plain request ("write a test for ...", "check that ...") | B |
-| a test that broke ("BM-114 fails on the new build", "DL-110 broke after the merge") | C |
+```
+- [ ] 1 workflow picked, its inputs complete   - [ ] 2 exe path confirmed
+- [ ] 3 setup READY                              - [ ] 4 user told: real mouse and keyboard
+```
+
+1. **What to do.** Pick the workflow and ask for what is missing:
+
+   | You have | Workflow | Ask for |
+   |---|---|---|
+   | test cases as a Confluence/Jira link, pasted text, a table, an export | A, then B per case | the source (no Confluence/Jira skill available -> ask the user to paste the content); the feature when the source does not say |
+   | a case ID, or a plain request ("write a test for ...", "check that ...") | B | the case ID (the team's - never invent one); for a new case also the steps, the expected result and the feature |
+   | a test that broke ("BM-114 fails on the new build", "DL-110 broke after the merge") | C | the case ID or test name; the error message if the user has one |
+
+2. **The build.** Show the current `browser.exe` of `config/local.yaml` (a fresh clone has no
+   such file) and ask the user to confirm it or give the full path of the
+   `SamsungInternet.exe` to write the tests against.
+3. **Prepare the machine** (Windows only) - on a fresh clone, a new machine or a new build:
+
+   ```
+   .\setup.bat --exe "<path>" --save
+   ```
+
+   It creates `.venv`, installs the packages, saves the exe as the default of every tool and
+   test (`browser.exe` in `config/local.yaml`, git-ignored), downloads chromedriver for the
+   build's Chromium and checks the machine. It must end with **READY**: every `[FAIL]` line has a
+   `fix:` line (no Python, proxy, certificates, a locked desktop...) - apply it and run it
+   again; never start on NOT READY. Report the WARN lines and what you fixed. Already READY in
+   this session: `python -m sbtest.tools.doctor` only re-checks.
+4. **Tell the user** that exploring and proving a test drive the real mouse and keyboard: the
+   Windows desktop must stay unlocked and visible, hands off while a test runs.
+
+Start the workflow only when 1-3 are done.
+
+Commands run in the repo root; `python` means `.venv\Scripts\python.exe`. Agent shells often
+do not run programs from the current folder, so always keep the `.\` / `./`:
+
+| shell | prepare the machine | Python of the repo |
+|---|---|---|
+| PowerShell | `.\setup.bat --exe "<path>" --save` | `.\.venv\Scripts\python.exe ...` |
+| cmd | `.\setup.bat --exe "<path>" --save` | `.venv\Scripts\python ...` |
+| Git Bash | `./setup.bat --exe "<path>" --save` | `.venv/Scripts/python.exe ...` |
 
 ## Hard rules (every workflow)
 
@@ -87,8 +123,8 @@ Copy this checklist into your reply and tick it off:
    (observable facts). Put it in the file of its area: `<feature>/<area>.md` (manager page
    cases, `sanity.md`, `toolbar.md` for browser-UI flows ...).
 2. **Explore the real UI** (always, before writing selectors):
-   1. Machine ready? `python -m sbtest.tools.doctor` ends with READY (once per session; a new
-      machine: `setup.bat`). Read `references/feature-notes.md` for the feature (known traps).
+   1. Read `references/feature-notes.md` for the feature (known traps). The tools below use
+      the exe saved in "Start" step 3.
    2. An internal page: `python -m sbtest.tools.dom <page> --interactive` (lines end with a
       ready locator); with data: `--seed-bookmarks resources/data/bookmarks.yaml:seed_basic`,
       `--extension resources/extensions/sample_addon`. Native UI:

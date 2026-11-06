@@ -44,6 +44,9 @@ Copy this checklist into your reply (only the steps you do) and tick it off:
 - [ ] 9 final answer sent (verdict, totals, triage, link)
 ```
 
+Start the tests (step 5) only when the questions of your steps are answered and setup is
+READY: a run started on a guess has to be repeated.
+
 ## 1. Ask what to test
 
 Options (several features may be combined; `--sanity` can be added to a feature selection):
@@ -99,11 +102,14 @@ Asking now lets the run finish without waiting for the user.
 .\setup.bat --exe "<path>"
 ```
 
-Needed on a new machine or a new build. It installs the packages, then checks the machine
-(keyboard, Chromium version, chromedriver - downloaded when missing -, browser start, internal
-pages, toolbar) and ends with READY or NOT READY. Every `[FAIL]` line has a `fix:` line: apply
-it (more: `README.md`) and run `setup.bat` again; never start the tests on NOT READY. Report
-the WARN lines and what you fixed. Re-check only: `python -m sbtest.tools.doctor`.
+Always before a run - on a fresh clone it is what creates `.venv`. It installs the packages,
+then checks the machine (keyboard, Chromium version, chromedriver for the build - downloaded
+when missing -, browser start, internal pages, toolbar) and ends with READY or NOT READY.
+Every `[FAIL]` line has a `fix:` line (no Python, proxy, certificates, a locked desktop...):
+apply it (more: `README.md`) and run `setup.bat` again; never start the tests on NOT READY.
+Report the WARN lines and what you fixed. Already READY for this exe in this session:
+`python -m sbtest.tools.doctor --exe "<path>"` only re-checks. The exe is not saved: keep
+`--exe` on every command (`--save` makes it the default only when the user asks for that).
 
 ## 5. Run
 

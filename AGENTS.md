@@ -5,7 +5,9 @@
   site), `artifacts/` (output, drivers; git-ignored); setup and run: `README.md`.
 - Windows only. Two steps: `setup.bat --exe "<SamsungInternet.exe>"` (installs packages, checks
   the machine with doctor, gets chromedriver; must end with READY), then `python run.py ...`
-  with the same `--exe`. Re-check only: `python -m sbtest.tools.doctor`.
+  with the same `--exe` (`setup.bat --exe "<path>" --save` makes it the default of every tool,
+  as for writing tests). Re-check only: `python -m sbtest.tools.doctor`. Both skills start by
+  asking for what they need (exe path, scope or case) and run setup before any real work.
 - Skills (Agent Skills format) in `.agents/skills/<name>/SKILL.md`, one per job:
   - `sbtest-author` - make tests: cases from links/pasted text -> case docs
     `tests/features/<feature>/*.md`, a case or request -> explore the real UI -> a stable test,

@@ -1,6 +1,21 @@
 [
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
+    "query": "Fresh clone of the repo, no .venv. Write a test that Ctrl+H opens the history page",
+    "files": [],
+    "expected_behavior": [
+      "Asks for the case ID and the SamsungInternet.exe path, waiting for each answer, before running anything",
+      "Runs .\\setup.bat --exe \"<path>\" --save and starts exploring only after READY",
+      "Tells the user the desktop must stay free (real mouse and keyboard)",
+      "Finds the existing Ctrl+H history test instead of writing a duplicate"
+    ]
+  },
+  {
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Here are the history test cases: <Confluence link>. Bring them into the repo",
     "files": [],
     "expected_behavior": [
@@ -10,7 +25,9 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Pasted table: 'Open settings, turn off Show home button, home button disappears'",
     "files": [],
     "expected_behavior": [
@@ -21,7 +38,9 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Add these cases: sign in to Samsung account and sync bookmarks",
     "files": [],
     "expected_behavior": [
@@ -30,9 +49,13 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Automate HIS-005 from tests/features/history/history.md",
-    "files": ["tests/features/history/history.md"],
+    "files": [
+      "tests/features/history/history.md"
+    ],
     "expected_behavior": [
       "Checks coverage first and finds the existing test instead of writing a duplicate",
       "Uses pages.history methods; no selector, internet:// URL or native UI name appears in the test",
@@ -40,9 +63,13 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Add a case: rename a bookmark folder from the bookmark manager, then automate it",
-    "files": ["tests/features/bookmarks/bookmark_manager.md"],
+    "files": [
+      "tests/features/bookmarks/bookmark_manager.md"
+    ],
     "expected_behavior": [
       "Asks the user for the case ID (does not invent one), then writes the case in tests/features/bookmarks/, Type web",
       "Seeds the folder with @pytest.mark.browser(bookmarks=...) instead of creating it through the UI",
@@ -51,7 +78,9 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Write a test: from the toolbar Add-ons menu, 'More options' > 'Manage add-on' opens the add-on's details page",
     "files": [],
     "expected_behavior": [
@@ -62,7 +91,9 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "Check that the Downloads bubble shows 'Canceled' after cancelling a slow download",
     "files": [],
     "expected_behavior": [
@@ -72,9 +103,13 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "BM-114 fails on the new build: 'UIA element bookmark_star_filled not found'",
-    "files": ["config/native_ui.yaml"],
+    "files": [
+      "config/native_ui.yaml"
+    ],
     "expected_behavior": [
       "Reads failures/<test>/failure.txt and screen.png before editing anything",
       "Dumps the toolbar with sbtest.tools.uia_dump and compares it with config/native_ui.yaml",
@@ -83,7 +118,9 @@
     ]
   },
   {
-    "skills": ["sbtest-author"],
+    "skills": [
+      "sbtest-author"
+    ],
     "query": "DL-110 broke after the Chromium merge, fix it",
     "files": [],
     "expected_behavior": [

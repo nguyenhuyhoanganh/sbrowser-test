@@ -3,6 +3,7 @@ rem Prepare a Windows test machine: install Python packages, then check the mach
 rem browser exe, Chromium version, chromedriver - downloaded if missing -, browser start, UI).
 rem   setup.bat                                        exe from config\local.yaml (asked the first time)
 rem   setup.bat --exe "C:\build\SamsungInternet.exe"   check that build
+rem   setup.bat --exe "C:\build\SamsungInternet.exe" --save   ...and make it the default (config\local.yaml)
 rem Then run the tests on their own:  .venv\Scripts\python run.py --sanity
 rem Behind a company proxy, first:  set HTTPS_PROXY=http://proxy.company.com:8080
 setlocal

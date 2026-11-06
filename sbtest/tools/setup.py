@@ -4,6 +4,8 @@ tests is a separate command: ``python run.py ...``.
 
     setup.bat                                        install + check (exe from config/local.yaml)
     setup.bat --exe "C:\\build\\SamsungInternet.exe"     check that build (not saved)
+    setup.bat --exe "C:\\build\\SamsungInternet.exe" --save   check it and make it the default
+                                                     (browser.exe of config/local.yaml)
 
 Without --exe it uses browser.exe of config/local.yaml; when that is missing it looks in the
 usual install folders and asks (the answer is saved to config/local.yaml).
@@ -51,12 +53,17 @@ def save_exe(path: str, local: Path = LOCAL) -> None:
     local.write_text(text, encoding="utf-8")
 
 
-def ensure_exe(cli_exe: str | None) -> str | None:
-    """The exe to test: --exe, else browser.exe of the config, else found/asked and saved."""
+def ensure_exe(cli_exe: str | None, save: bool = False, local: Path = LOCAL) -> str | None:
+    """The exe to test: --exe (saved to local.yaml with ``save``), else browser.exe of the
+    config, else found/asked and saved."""
     console.section("3/4", "Browser to test")
     if cli_exe:
-        ok = Path(cli_exe).exists()
-        console.check(OK if ok else FAIL, f"Using --exe {cli_exe}", "the file does not exist: check the path")
+        ok = Path(cli_exe).is_file()
+        if ok and save:   # the default of every tool (dom, uia_dump, scratch tests, run.py)
+            save_exe(cli_exe, local)
+            console.check(OK, f"Using --exe {cli_exe} (saved to config\\local.yaml)")
+        else:
+            console.check(OK if ok else FAIL, f"Using --exe {cli_exe}", "the file does not exist: check the path")
         return cli_exe if ok else None
     from sbtest.config import load_config
 
@@ -98,9 +105,11 @@ def main(argv=None) -> int:
 
     p = argparse.ArgumentParser(description="setup.bat: check the machine after installing")
     p.add_argument("--exe", help="SamsungInternet.exe to check (default: browser.exe of config/local.yaml)")
+    p.add_argument("--save", action="store_true",
+                   help="with --exe: save it as browser.exe in config/local.yaml (the default of every tool)")
     args = p.parse_args(argv)
 
-    if not ensure_exe(args.exe):
+    if not ensure_exe(args.exe, save=args.save):
         return 1
     console.section("4/4", "Machine check")
     console.note("the browser opens and closes by itself")
@@ -109,7 +118,7 @@ def main(argv=None) -> int:
     code = doctor.main(["--exe", args.exe] if args.exe else [], step="4")
     if code:
         return code
-    exe = f' --exe "{args.exe}"' if args.exe else ""
+    exe = f' --exe "{args.exe}"' if args.exe and not args.save else ""
     print("\nNext - run the tests (hands off the mouse and keyboard while they run):")
     print(f"  .venv\\Scripts\\python run.py --sanity{exe}      quick sanity pass")
     print(f"  .venv\\Scripts\\python run.py --all{exe}         every test (about 8-10 minutes)")

@@ -17,6 +17,7 @@ dialogs. Each run produces a per-build report (HTML, Markdown, Confluence page).
 ```bat
 .\setup.bat                                          & rem exe from config\local.yaml, asked the first time
 .\setup.bat --exe "C:\build\SamsungInternet.exe"     & rem check a given build
+.\setup.bat --exe "C:\build\SamsungInternet.exe" --save   & rem ...and make it the default
 ```
 
 Installs the packages into `.venv`, then checks the machine: keyboard, Chromium version,
@@ -34,7 +35,7 @@ chromedriver (downloaded when missing), browser start, internal pages, toolbar. 
 .venv\Scripts\python run.py --list                    & rem cases and automation status
 ```
 
-Add `--exe "<path>"` when setup used it. Other options: `--no-native` (skip tests that drive
+Add `--exe "<path>"` when setup used it without `--save`. Other options: `--no-native` (skip tests that drive
 the real UI), `--reruns 1`, `--record` (a video of every test: browser windows, the running
 case step as a caption, clicks and typing framed in red), `--screenshot-steps` (the same as
 pictures: one before every click / typing, plus one per step), `--raw` (pytest's own output).
