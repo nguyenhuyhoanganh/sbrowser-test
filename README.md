@@ -70,7 +70,7 @@ in the page object (`sbtest\pages\`) or `config\native_ui.yaml`, not in the test
 ```
 config/          settings: default.yaml, native_ui.yaml (browser UI names), local.yaml (this machine)
 sbtest/          framework: browser, web, native, pages, reporting, tools
-tests/features/  one folder per feature: case docs (*.md) + their tests; TESTCASES.md overview
+tests/features/  one folder per feature: case docs (*.md) + their tests; TESTCASES.md (generated, git-ignored)
 tests/framework/ self-tests without a browser: python -m pytest tests/framework -q
 resources/       test data, sample add-on, profile templates, local test site
 artifacts/       output of runs and tools, downloaded chromedriver (git-ignored)

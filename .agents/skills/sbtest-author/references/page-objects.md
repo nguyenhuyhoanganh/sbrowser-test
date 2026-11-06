@@ -8,25 +8,18 @@ sbtest/pages/webstore.py    Chrome Web Store item page (public site)
 
 Tests only use the `pages` fixture (`pages.extensions`, ...). Page objects hold selectors and
 page steps, **no assertions**: they return data and wait for their own effect. Each module
-docstring has a STATUS line (the Samsung version it was verified on) and how the page differs
-from upstream Chromium.
+docstring has a STATUS line (`verified on Samsung Browser <version> (Chromium <n>)`) and how
+the page differs from upstream Chromium. What each method does: `references/action-catalog.md`
+or the class itself.
 
-## When a page changed (after a Samsung/Chromium update)
-
-1. Dump it: `python -m sbtest.tools.dom extensions --interactive --out ext.txt`
-   (with data: `--seed-bookmarks ...`, `--extension resources/extensions/sample_addon`).
-2. Fix class constants (`ROOT`, `ITEMS`, `DEV_MODE` ...) first, then methods whose flow
-   changed (e.g. a confirmation that became a native prompt instead of a si-dialog).
-3. Keep method names, parameters and return types - tests must not change.
-4. Update the STATUS line: `verified on Samsung Browser <version> (<date>)`.
-5. Run the feature: `python run.py --feature addons`.
+A page changed after an update: `references/debugging.md`, "When a page or the browser UI
+changed" - keep method names, parameters and return types so tests do not change.
 
 Private APIs: `ExtensionsPage.info()` uses `chrome.developerPrivate` (works on Samsung 31);
 if a build stops exposing it, check `web.js("return typeof chrome.developerPrivate")` and
 switch to a UI-based read.
 
-`>>>` is only needed where a shadow root exists; `text=`, `aria=`, `deepcss=` work everywhere.
-Prefer `id`, `data-*`, `aria-*`; never generated class names (`css-1x2y3z`).
+Selectors: `references/web-api.md`, "Locators".
 
 ## BasePage helpers
 
@@ -40,9 +33,6 @@ Prefer `id`, `data-*`, `aria-*`; never generated class names (`css-1x2y3z`).
 | `wait_toast(contains="")` / `toast_action("Undo")` | toast |
 | `open_dialog()` / `dialog_text()` / `dialog_input(id)` / `dialog_button(text)` / `wait_dialog_closed()` | in-page dialog |
 | `q(value)` | quote for CSS attribute selectors: `f"[aria-label={q(name)}]"` |
-
-Each page object's methods: `references/action-catalog.md`, or the
-class itself in `sbtest/pages/`.
 
 ## Adding a new page
 

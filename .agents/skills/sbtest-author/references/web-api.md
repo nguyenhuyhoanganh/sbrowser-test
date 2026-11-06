@@ -29,17 +29,10 @@ Scoping: `web.find("deep=#menuButton", within=row)` searches **inside row's shad
 (`deep=` with one segment). CSS/XPath with `within=` search row's light DOM.
 `text=`/`aria=`/`deepcss=` with `within=` search the row's subtree incl. its shadow.
 
-Get locators from the explorer instead of writing them by hand:
-
-```
-python -m sbtest.tools.dom bookmarks --interactive
-python -m sbtest.tools.dom history --exec "web.open(site.page('A'))" --exec "web.open('chrome://history')"
-python -m sbtest.tools.dom /form.html --out artifacts/form.txt
-```
-
-Each output line ends with `=>  <locator>`. Prefer ids (`#saveButton`) and stable tags
-(`bookmarks-item`) over `:nth-of-type`. If a locator needs `:nth-of-type`, prefer a text
-or aria based lookup (`find_by_text`, `aria=`).
+Take locators from `python -m sbtest.tools.dom <page>` (`references/debugging.md`,
+"Exploring"), not from memory. Prefer ids (`#saveButton`) and stable tags (`bookmarks-item`);
+where only `:nth-of-type` would work, use a text or aria lookup (`find_by_text`, `aria=`).
+Never generated class names (`css-1x2y3z`).
 
 ## Waits (never sleep)
 

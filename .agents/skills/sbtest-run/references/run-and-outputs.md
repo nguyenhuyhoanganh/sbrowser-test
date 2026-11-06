@@ -68,7 +68,7 @@ The folder holds the latest run only: it is emptied when the next run starts. `<
 
 ```
 python -m sbtest.tools.summary            # the run's summary again (--json: same data as JSON)
-python -m sbtest.tools.report [--open]    # rebuild report/ and share/ (e.g. after editing case docs)
+python -m sbtest.tools.report [--open] [--share-media all]   # rebuild report/ and share/ (e.g. after editing case docs)
 python -m sbtest.tools.case_overview      # refresh tests/features/TESTCASES.md with the latest results
 python -m sbtest.tools.coverage           # which case IDs are automated, missing or orphaned
 ```

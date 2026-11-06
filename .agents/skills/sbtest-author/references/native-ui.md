@@ -6,21 +6,14 @@ pywinauto missing).
 
 ## Contents
 
-- Discover before you write
+- The ui map `config/native_ui.yaml`
 - API
 - Traps
 
-## Discover before you write
+## The ui map `config/native_ui.yaml`
 
-```
-python -m sbtest.tools.uia_dump --out artifacts/uia_main.txt                      # whole frame
-python -m sbtest.tools.uia_dump --url /pages/page1.html --keys "^d" --find "(?i)bookmark|done"
-python -m sbtest.tools.uia_dump --pid <pid>          # attach to a browser you opened by hand
-python -m sbtest.tools.dom bookmarks --uia artifacts/uia.txt   # DOM + UIA in one go
-```
-
-Lines look like `Button 'Bookmarks' auto_id='view_1023' class='BookmarksButton' rect=(..)`.
-Put stable criteria into `config/native_ui.yaml` and use the logical name:
+Find names with `python -m sbtest.tools.uia_dump` (`references/debugging.md`, "Exploring"),
+put stable criteria into the ui map and use the logical name:
 
 ```yaml
 bookmarks_button:
@@ -51,8 +44,8 @@ native.click("bookmark_star")  # logical name from config/native_ui.yaml, or a c
 native.click(criteria, in_main=False)   # an element in another browser window (add-on popup)
 native.element("omnibox") / native.exists("downloads_button")
 native.navigate(url)           # Ctrl+L, type, Enter - like a user in the address bar
-native.focus_page()            # focus out of the omnibox into the page (the star is hidden while it has focus)
-native.close_download_bubble() # X of the Downloads bubble that opens after a download (covers the page toolbar)
+native.focus_page()            # focus out of the omnibox into the page
+native.close_download_bubble() # X of the Downloads bubble that opens after a download
 native.omnibox_text()
 native.tab_titles()
 native.menu("Bookmarks", "Bookmark manager")   # app menu path (regex prefix per item)
@@ -91,12 +84,12 @@ native.screenshot(path) / native.dump(path) / native.close_stray_dialogs()
 - Native input needs the browser window in the foreground on an unlocked desktop (not a
   minimized RDP session). Shortcuts bring the browser back first; typing fails with "keyboard
   input would go to <process>" when another window is in front.
-- Keep windows unique: the framework identifies windows by the browser PID; don't
-  run a manual Samsung Internet instance with the same profile.
-- Clicks: every native click waits until the element is enabled, on screen and still;
-  `Dialog.click` uses UIA Invoke for Win32 buttons and the real mouse for browser (Views)
-  buttons, after the bubble's click protection - see `feature-notes.md` "Whole product".
-- DPI scaling: coordinates from `web_point` already multiply by `devicePixelRatio`.
-- Menus are separate top-level windows of the browser process; `select_menu_items`
-  searches all of them.
-- If a dialog is not found, dump: `native.dump("artifacts/uia_now.txt")` right before the wait.
+- The framework finds windows by the browser's PID: never run a second Samsung Browser by
+  hand on the same profile.
+- Every native click waits until the element is enabled, on screen and still - no sleeps.
+  Browser bubbles also ignore clicks right after they show: `Dialog.click` waits that out and
+  uses the real mouse (UIA Invoke only for Win32 buttons).
+- Menus are separate top-level windows of the browser process; `select_menu_items` searches
+  all of them.
+- A dialog is not found -> `native.dump("artifacts/uia_now.txt")` right before the wait.
+- Product traps of each feature (star, toasts, download bubble...): `references/feature-notes.md`.

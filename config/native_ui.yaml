@@ -1,16 +1,8 @@
-# Native UI of Samsung Browser for Windows. Verified on Samsung Browser 31.0.0.55
-# (Chromium 148, arm64). Re-check after UI changes with:  python -m sbtest.tools.uia_dump --out uia.txt
-# Keys you can use: title, title_re, control_type, auto_id, class_name, found_index
-#
-# Differences from Chrome worth knowing:
-# - the omnibox is a Group named "Address and search bar, <url>" (no Edit control)
-# - Ctrl+D bookmarks at once and shows a "Page bookmarked. [Edit]" toast (no bubble)
-# - the star only exists while the page is bookmarked ("Remove from Bookmarks"); it is
-#   StarView up to build 31, PageActionView since build 155, where it only shows once the
-#   omnibox has lost focus (native.focus_page())
-# - app menu button is named "Samsung Browser"; menu items carry the shortcut in their
-#   name ("Downloads Ctrl+J"), menus match by prefix so "Downloads" works
-# - the address bar shows internet://..., WebDriver/CDP report chrome://...
+# Logical name -> UIA criteria of Samsung Browser's own UI (toolbar, menus, bubbles, dialogs),
+# used as native.click("<name>"). Verified on Samsung Browser 31.0.1.40 (Chromium 151).
+# Keys: title, title_re, control_type, auto_id, class_name, class_name_re, found_index;
+# {name} is filled by native.click("<key>", name="X"). Find names with
+# python -m sbtest.tools.uia_dump. How the UI behaves: .agents/skills/sbtest-author/references/feature-notes.md
 
 main_window:
   class_name: Chrome_WidgetWin_1
@@ -29,7 +21,7 @@ reload_button:
   title_re: "(?i)^reload$"
 home_button:
   class_name: HomeButton
-bookmark_star:               # StarView (<= 31) / PageActionView (155+, shared by other page actions)
+bookmark_star:               # StarView (up to Chromium 151) / PageActionView (Chromium 155+, shared by other page actions)
   class_name_re: "^(StarView|PageActionView)$"
   title_re: "(?i)bookmark"
 bookmark_star_filled:        # the page is bookmarked; clicking removes the bookmark
@@ -93,7 +85,7 @@ extension_action:            # pinned add-on icon: "<name>\nHas access to this s
   title_re: "^{name}"
 download_bubble_item:        # row of the toolbar Downloads bubble: "<name> <size> • Done"
   class_name: DownloadBubbleTransparentButton
-download_bubble_close:       # X of that bubble (build 155: it covers "Clear download history");
+download_bubble_close:       # X of that bubble (Chromium 155+: it covers "Clear download history");
   control_type: Button       # native.close_download_bubble() presses Esc if it is not found
   title_re: "(?i)^close$"
 bookmarks_bar:

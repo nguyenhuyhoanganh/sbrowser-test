@@ -16,16 +16,14 @@ Running a whole build and reporting on it is the `sbtest-run` skill, not this on
 
 | file | what it is for |
 |---|---|
-| `references/case-format.md` | where a case doc and its test file go, their names, IDs, the case format |
-| `references/action-catalog.md` | a case step -> the call that does it (pages, toolbar, bubbles, dialogs, data, asserts) |
-| `references/feature-notes.md` | traps of each feature on the real build (add-ons, bookmarks, downloads, history, general) |
-| `references/conventions.md` | shape of a test: steps, expected, markers, imports, assertions |
-| `references/test-data.md` | preconditions as data: seeded bookmarks / prefs / add-ons, local pages, files, unique names |
+| `references/case-format.md` | where a case doc and its test file go, their names, IDs, the case format, `_inbox/` |
+| `references/action-catalog.md` | a case step -> the call that does it (pages, toolbar, bubbles, dialogs, files, asserts) |
+| `references/feature-notes.md` | the product's traps, per feature - the only place they are written |
+| `references/writing-tests.md` | shape of a test, fixtures, markers, imports; preconditions as data (seeds, prefs, add-ons, local site, files, profiles) |
 | `references/web-api.md` | `web`: locators, Shadow DOM, waits, clicks / typing / drag, tabs, frames, JS dialogs |
-| `references/native-ui.md` | `native`: toolbar, address bar, menus, bubbles, Save As / Open dialogs, Explorer, shortcuts |
+| `references/native-ui.md` | `native`: the ui map, toolbar, address bar, menus, bubbles, Save As / Open dialogs, Explorer, shortcuts |
 | `references/page-objects.md` | adding or changing a page object (`sbtest/pages/`) |
-| `references/debugging.md` | evidence files of a failure, typical errors, after a Chromium merge |
-| `references/framework-map.md` | where things are in the repo, fixtures, markers, tools |
+| `references/debugging.md` | the exploring tools (`dom`, `uia_dump`), evidence of a run, typical failures, a page or UI changed after a merge |
 | `templates/test_template.py` | starting point of a new test file |
 | `templates/explore_template.py` | starting point of a scratch exploration test |
 
@@ -139,17 +137,15 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
    - Read the feature's section of `references/feature-notes.md` (known traps).
    - Every step has a row in `references/action-catalog.md` and every label it needs is named
      there or in feature-notes -> no scratch test: at most one look at an internal page with
-     `python -m sbtest.tools.dom <page> --interactive` (with data:
-     `--seed-bookmarks resources/data/bookmarks.yaml:seed_basic`, `--extension
-     resources/extensions/sample_addon`); the step pictures of B5b confirm the rest.
+     `python -m sbtest.tools.dom <page> --interactive` (with data, and the other tools:
+     `references/debugging.md`, "Exploring"); the step pictures of B5b confirm the rest.
    - Otherwise (a step with no row, a label nobody wrote down, an unknown bubble or dialog) ->
      a scratch test: copy `templates/explore_template.py` to
      `tests/_scratch/test_explore_<topic>.py`, edit, run
      `python -m pytest tests/_scratch/test_explore_<topic>.py -s -p no:cacheprovider`.
      `x.snap(label)` saves `artifacts/explore/<topic>/NN_label.png` + `.dom.txt` + `.uia.txt`;
      `x.try_step(label, fn)` goes on after errors; `x.find_native("(?i)text")` /
-     `x.find_web("text")` print exact names and locators. Native UI alone:
-     `python -m sbtest.tools.uia_dump --find "(?i)text"`.
+     `x.find_web("text")` print exact names and locators.
    - **Open the screenshots and look at them**: a toast instead of a bubble, a new tab instead
      of the same tab, a label that differs from the case.
    - Record what you learned in the page object docstring, the ui-map comment and the
@@ -159,9 +155,9 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
    (`config/native_ui.yaml`, `references/native-ui.md`), then a row to the catalogue.
 4. **Write** the test in the test file of its case doc
    (`<area>.md` -> `tests/features/<feature>/test_<feature>_<area>.py`, `references/case-format.md`);
-   a new file starts from `templates/test_template.py`. Shape: `references/conventions.md` -
-   each case step = `with step("N. ...", expected="..."):`, the case's Expected = assertions on
-   state.
+   a new file starts from `templates/test_template.py`. Shape, fixtures, markers and
+   preconditions as data: `references/writing-tests.md` - each case step =
+   `with step("N. ...", expected="..."):`, the case's Expected = assertions on state.
 5. **Prove it.** Each run empties `artifacts/test-results/` first: look at a run's evidence
    before starting the next one. `<test folder>` below = the test's node id with `/` and `::`
    turned into `_` (`tests_features_<feature>_test_<feature>_<area>.py_<test name>`).
@@ -191,7 +187,7 @@ build really shows, and say so in your report.
    - **outdated test** - same behaviour, different markup or labels -> dump the page
      (`python -m sbtest.tools.dom <page>`) or the browser UI (`python -m sbtest.tools.uia_dump`),
      fix the page object or `config/native_ui.yaml`; keep method names, parameters and return
-     types (`references/page-objects.md`, "When a page changed");
+     types (`references/debugging.md`, "When a page or the browser UI changed");
    - **environment** - locked desktop, another window in front, driver mismatch -> fix the
      machine (`python -m sbtest.tools.doctor`), not the test;
    - **flaky** - passes when run again -> a race: find the missing wait, stale list read or
@@ -199,7 +195,7 @@ build really shows, and say so in your report.
 3. Record the build difference in `references/feature-notes.md` and in the page object's
    STATUS line.
 4. Prove it as in B5. Many tests broken after a Chromium merge: `references/debugging.md`,
-   "After a Chromium merge".
+   "When a page or the browser UI changed".
 
 ## Before you finish
 

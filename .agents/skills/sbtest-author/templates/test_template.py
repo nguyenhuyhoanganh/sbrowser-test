@@ -8,7 +8,7 @@ from sbtest.steps import step
 from sbtest.utils import unique
 
 
-@pytest.mark.case("XX-001")
+@pytest.mark.case("<ID>")
 # @pytest.mark.sanity                          # part of the quick pass
 # @pytest.mark.native                          # any step uses `native`
 # @pytest.mark.browser(bookmarks="seed_basic", prefs={...}, extensions=["sample_addon"])

@@ -29,10 +29,12 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("run_dir", nargs="?", help="run folder (default: artifacts/test-results)")
     p.add_argument("--open", action="store_true", help="open the HTML report")
+    p.add_argument("--share-media", choices=["failed", "all", "none"],
+                   help="cases whose video / step pictures go in share/ (default: report.share_media)")
     args = p.parse_args(argv)
     run_dir = Path(args.run_dir) if args.run_dir else latest_run()
     index = generate(run_dir)
-    share = export(run_dir)
+    share = export(run_dir, args.share_media)
     print(f"Report:     {index}")
     print(f"Share:      {share}  (Confluence page / Jira attachments, see the sbtest-run skill)")
     if args.open and os.name == "nt":

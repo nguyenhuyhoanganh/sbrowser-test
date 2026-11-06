@@ -238,7 +238,7 @@ class NativeBrowser:
     def focus_page(self) -> None:
         """Move keyboard focus out of the omnibox into the web content, like clicking the page.
 
-        Since build 155 the omnibox shows other icons while it has focus and the bookmark star
+        On Chromium 155+ the omnibox shows other icons while it has focus and the bookmark star
         (``PageActionView``) only appears once it loses focus; a page opened by WebDriver can
         leave the focus in the omnibox."""
         main = self.main_window()
@@ -622,8 +622,8 @@ class NativeBrowser:
             log.debug("startup bubble check failed: %s", e)
 
     def close_download_bubble(self, timeout: float = 3) -> bool:
-        """Close the toolbar Downloads bubble that opens when a download finishes (since build
-        155 it covers the toolbar of the downloads page, e.g. "Clear download history"): click
+        """Close the toolbar Downloads bubble that opens when a download finishes (on Chromium
+        155+ it covers the toolbar of the downloads page, e.g. "Clear download history"): click
         its X, Esc when it has none. False when no bubble showed up within ``timeout``."""
         try:
             row = self.element("download_bubble_item", timeout=timeout, in_main=False)

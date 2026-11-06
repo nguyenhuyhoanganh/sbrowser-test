@@ -1,7 +1,8 @@
 # Feature notes (what works, what bites)
 
-A note that names a build number ("155") holds from that build on. Record here what a new
-build changes.
+The one place for the product's traps; other references only point here. Versions are written
+"Samsung 31.0.1.40" (the exe's product version) or "Chromium 155+" (the Chromium the build is
+based on, from that version on). Record here what a new build changes.
 
 ## Contents
 
@@ -22,12 +23,10 @@ build changes.
   nothing waits for it - one quick look after start, then for 10 s every native action first
   closes it if it has shown up (`startup_bubbles` in `config/native_ui.yaml`,
   `native.startup_bubble_watch`). Web-only tests are not affected.
-- Chromium drops clicks on a bubble's buttons for the double-click time after it shows, and Views
-  buttons ignore UIA Invoke: `Dialog.click()` waits out that time (counted from when the dialog
-  was found) and uses the real mouse. Every native click first waits until the element is
-  enabled, on screen and no longer moving (`uia.wait_actionable`) - no sleeps needed.
 - A click on the button a bubble/toast is anchored to (the star under "Page bookmarked.") only
   closes the bubble: `native.wait_dialog_gone("bookmark_added")` first.
+- The address bar is a Group named "Address and search bar, <url>" (no Edit control): read it
+  with `native.omnibox_text()`.
 - Bubbles with no title are found by a Text inside.
 - Terms used in these skills: **snack bar** = the in-page si-snack-bar ("1 bookmark deleted"
   [Undo], `page.wait_toast`); **toast** = the native browser toast ("Page bookmarked." [Edit],
@@ -37,7 +36,7 @@ build changes.
   left side bar with search + filters (`page.side_bar("Image")`).
 - Pages, shortcuts and links that open "a page" open it in a NEW TAB:
   `web.switch_tab(url=cfg.page_url("history"))`.
-- 31.0.1.40 crashes on exit about 1 time in 3 under load (exit code 0x80000003, a CHECK in
+- Samsung 31.0.1.40 crashes on exit about 1 time in 3 under load (exit code 0x80000003, a CHECK in
   `partition_alloc_support.cc`), also when the window is closed like a user; what it had not
   saved yet is lost (a bookmark edited < 2.5 s before closing). `session.restart()` then fails
   with `BrowserCrashed`.
@@ -67,8 +66,8 @@ build changes.
 - Ctrl+D bookmarks at once: toast "Page bookmarked." [Edit] (`dialogs.bookmark_added`), no
   bubble; the star becomes "Remove from Bookmarks" (clicking it removes the bookmark, once
   the toast is gone - see "Whole product").
-- The star (`StarView` on 31, `PageActionView` on 155; the ui map matches both) only shows
-  when the omnibox has NO focus. A page opened by `web.open` leaves the focus there, and when
+- The star (`StarView` up to Chromium 151, `PageActionView` on Chromium 155+; the ui map
+  matches both) only shows when the omnibox has NO focus. A page opened by `web.open` leaves the focus there, and when
   the "Page bookmarked." toast closes the focus goes back to the omnibox a moment later: call
   `native.focus_page()` after opening the page and before Ctrl+D, and before a star check wait
   until the star shows, focusing the page again while it does not.
@@ -102,12 +101,11 @@ build changes.
   X (remove, snack bar + Undo). In-progress row: progress bar + text buttons Pause/Resume,
   Cancel (`action(name, "Pause")`). Cancel REMOVES the row ("x removed from Downloads." + Undo);
   the toolbar Downloads bubble shows "Canceled". Toolbar: "Clear download history".
-- A finished download opens the toolbar Downloads bubble over the page. Since build 155 it
-  covers the downloads page toolbar button "Clear download history" (cases call it "Clear
-  all"): close it first with
-  `native.close_download_bubble()` (clicks its X, ui map `download_bubble_close`), then click
-  the button.
-  Any test that downloads and then uses that toolbar needs this (+ `native`).
+- A finished download opens the toolbar Downloads bubble over the page. On Chromium 155+ it
+  covers the downloads page's toolbar button "Clear download history" (cases call it "Clear
+  all"): any test that downloads and then uses that toolbar first calls
+  `native.close_download_bubble()` (its X, ui map `download_bubble_close`; the test is
+  `native`).
 - "Show in folder"/"Open" launch Explorer / the default app (outside the browser): assert with
   `native.wait_explorer(...)` and close the window afterwards.
 - Dangerous/blocked file types show a warning instead of finishing - pick safe types.
@@ -146,5 +144,5 @@ build changes.
   "Open in new window", "Open in Secret mode", "Open in side panel", "Save link as", "Copy link",
   "Share link", "Inspect". "Open in new tab" opens it in the BACKGROUND: the current tab stays.
 - `window.open` popups are windows; they also appear in `web.tabs`.
-- `beforeunload` "Leave site?" is accepted automatically by chromedriver (WebDriver spec): the
-  prompt can't be observed or dismissed; cases about it are not automatable with this stack.
+- `beforeunload` "Leave site?" is accepted by chromedriver itself (WebDriver spec): it cannot be
+  observed or dismissed -> such cases are `Automated: no`.

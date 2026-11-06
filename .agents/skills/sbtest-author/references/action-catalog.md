@@ -1,10 +1,9 @@
 # Action catalogue - "the request says" -> "the test does"
 
-Fixtures: `web`, `native`, `pages`,
-`site`, `session`, `cfg`, `downloads_dir`, `data`, `tmp_path`.
-Logical names in quotes (`"bookmarks_button"`) are keys of `config/native_ui.yaml`;
-`name=` fills their `{name}` placeholder. Anything missing here: explore it (SKILL.md, B2), add a page-object method or ui-map
-entry, then a row to this table.
+Each row: what a case says -> the call. Fixtures: `references/writing-tests.md`. Logical names
+in quotes (`"bookmarks_button"`) are keys of `config/native_ui.yaml`; `name=` fills their
+`{name}` placeholder. Why a call is needed (focus, toasts, bubbles): `references/feature-notes.md`.
+Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, then a row here.
 
 ## Contents
 
@@ -73,8 +72,8 @@ entry, then a row to this table.
 |---|---|
 | Ctrl+D -> toast "Page bookmarked." / "Bookmark added to ..." | `native.hotkey("^d"); toast = native.wait_dialog("bookmark_added")` |
 | toast > Edit -> rename | click Edit at once (the toast closes after a few seconds): `toast.click("Edit")`, field `native.element("bookmark_edit_name", in_main=False)` (focus, `native.hotkey("^a", focus=False)`, `native.type_text(...)`), `native.click("bookmark_edit_save")`; read a field: `native.element("bookmark_edit_url", in_main=False).get_value()` |
-| is the page bookmarked (star) | `native.focus_page()` first (no star while the omnibox has focus; it takes the focus back when a toast closes - wait for the star, refocusing), then `native.exists("bookmark_star_filled")` |
-| remove with the star | `native.wait_dialog_gone("bookmark_added")` (while the toast shows, a click on the star only closes it), then `native.click("bookmark_star_filled")` |
+| is the page bookmarked (star) | helper `def star(): native.focus_page(); return native.exists("bookmark_star_filled")`, then `web.wait_until(star)` / `web.wait_until(lambda: not star())` - the star only shows while the page has the focus (feature-notes, Bookmarks) |
+| remove with the star | `native.wait_dialog_gone("bookmark_added")` (after a Ctrl+D), then `native.click("bookmark_star_filled")` |
 | Bookmarks panel (toolbar) | `native.click("bookmarks_button")`; folder `native.click("bookmarks_panel_folder", name="Bookmark bar")`; bookmark `native.click("bookmarks_panel_item", name="X")`; buttons `"bookmarks_panel_add_page"`, `"bookmarks_panel_create_folder"`, `"bookmarks_panel_expand"` (opens the manager) |
 
 ## History (`pages.history`)
@@ -98,12 +97,11 @@ entry, then a row to this table.
 | file on disk | `web.wait_file(downloads_dir, "x")` |
 | pause / resume / cancel | `d.action("slow.bin", "Pause" / "Resume" / "Cancel")`, `d.status("slow.bin")` ("Paused ...") |
 | remove + undo | `d.remove("x")`, `d.toast_action("Undo")` |
-| clear the list ("Clear all" = toolbar "Clear download history") | `native.close_download_bubble()` if a download just finished, then `d.clear_all()` |
+| clear the list ("Clear all" = toolbar "Clear download history") | `native.close_download_bubble()` if a download just finished (feature-notes, Downloads), then `d.clear_all()` |
 | category / search | `d.filter_category("Image")`, `d.search("data")` |
 | copy link | `d.action("x", "Copy link")` + `pywinauto.clipboard.GetData()` |
 | show in folder | `d.action("x", "Show in folder")`, `native.wait_explorer(downloads_dir.name)`, `native.explorer_has_selected(win, "x")` |
 | toolbar download bubble | `native.element("download_bubble_item", title_re=r"^x ")` -> name "x 2,048 B • Done" |
-| close the download bubble (155+: it covers "Clear download history") | `native.close_download_bubble()` (its X) |
 | ask where to save | prefs `download.prompt_for_download` + `native.file_dialog("save").save_as(path)` |
 
 ## Add-ons
@@ -127,7 +125,7 @@ entry, then a row to this table.
 | Request | Do |
 |---|---|
 | a browser bubble / prompt | `dlg = native.wait_dialog("<ui-map dialogs key>" or "(?i)regex")` -> `.texts()`, `.click("Label")`, `.click_any("A", "B")`, `.wait_closed()` |
-| wait until a bubble / toast is gone (before clicking what it is anchored to) | `native.wait_dialog_gone("bookmark_added")` |
+| wait until a bubble / toast is gone | `native.wait_dialog_gone("bookmark_added")` |
 | dialog inside an internal page | `page.open_dialog()`, `page.dialog_text()`, `page.dialog_input("name")`, `page.dialog_button("Save")` |
 | upload through Windows Open | `web.click(button)`, `native.file_dialog("open").open(f1, f2)` |
 | upload through `<input type=file>` | `web.upload(loc, path)` (no OS dialog) |
@@ -135,11 +133,11 @@ entry, then a row to this table.
 | choose a folder | `native.file_dialog("open").select_folder(path)` |
 | drag a file from Explorer | `native.drag_file_from_explorer(path, web=web, target="#drop-zone")` |
 | JS alert / confirm / prompt | `web.accept_alert(prompt_text=...)`, `web.dismiss_alert()` |
-| "Leave site?" (beforeunload) | not observable: chromedriver accepts it -> `Automated: no (WebDriver auto-accepts beforeunload)` |
+| "Leave site?" (beforeunload) | `- Automated: no (WebDriver accepts beforeunload itself)` (feature-notes, General) |
 | drag & drop inside a page | `web.drag_and_drop(a, b, method="html5" / "actions" / "native")` |
 | Windows notification | `native.wait_os_toast("(?i)text")` |
 | print preview | `native.wait_dialog("print")`, `.press("{ESC}")` (the page is blocked meanwhile: no `web.*`) |
-| right-click on a page | `native.context_menu_web(web, "#next", "Open in new tab")` - Samsung labels: Open in new tab / new window / Secret mode / side panel, Save link as, Copy link |
+| right-click on a page / link | `native.context_menu_web(web, "#next", "Open in new tab")` (Samsung's labels: feature-notes, General) |
 
 ## Reading and asserting
 
