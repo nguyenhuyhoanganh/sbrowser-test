@@ -2,7 +2,7 @@
 
     python run.py --all                                  # every feature
     python run.py --feature addons,bookmarks             # some features
-    python run.py --case ADD-001,DL-004                  # some test cases
+    python run.py --case <ID>,<ID>                       # some test cases
     python run.py --sanity                               # quick pass (@sanity)
     python run.py --list                                 # cases per feature and automation status
     python run.py --feature downloads -- -x -k pause     # extra pytest args after --

@@ -2,12 +2,8 @@
 
 ## Files and names
 
-- Tests: `tests/features/<feature>/test_<feature>_<area>.py` - feature = folder (`addons`,
-  `bookmarks`, `downloads`, `history`, `general`). New feature area (e.g. `settings`) -> new
-  folder `tests/features/<feature>/` (case docs + tests) + `FEATURES` in
-  `sbtest/pytest_plugin.py` + a row in `FEATURES` of `sbtest/tools/case_overview.py`.
-- Native-only cases may live in `test_<area>_native.py` or in the same file with
-  `@pytest.mark.native`; either is fine, be consistent within a feature.
+- Which case doc and which test file: `references/case-format.md`, "Files and names"
+  (`<area>.md` <-> `test_<feature>_<area>.py`).
 - Test name: `test_<what_it_verifies>` in snake case (`test_delete_and_undo`), not the ID.
 - One test function per case ID. A case may get extra helper tests without IDs only for
   framework behaviour; product checks always carry an ID.
@@ -16,7 +12,7 @@
 ## Test shape
 
 ```python
-@pytest.mark.case("BM-004")
+@pytest.mark.case("<ID>")
 @pytest.mark.browser(bookmarks="seed_basic")      # preconditions
 def test_delete_and_undo(pages):
     bm = pages.bookmarks

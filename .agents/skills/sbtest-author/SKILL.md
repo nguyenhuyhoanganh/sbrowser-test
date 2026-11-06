@@ -6,11 +6,28 @@ description: Creates and maintains the automated tests of Samsung Internet / Sam
 # Creating tests: cases in, stable tests out
 
 Paths: `references/...` and `templates/...` are in this skill's folder
-(`.agents/skills/sbtest-author/`); every other path is relative to the repo root. Commands run
+`.agents/skills/sbtest-author/`; every other path is relative to the repo root. Commands run
 in the repo root.
 
 **Never guess a label, selector or behaviour**: look at the real build, then write.
 Running a whole build and reporting on it is the `sbtest-run` skill, not this one.
+
+## Files of this skill (open one only when a step needs it)
+
+| file | what it is for |
+|---|---|
+| `references/case-format.md` | where a case doc and its test file go, their names, IDs, the case format |
+| `references/action-catalog.md` | a case step -> the call that does it (pages, toolbar, bubbles, dialogs, data, asserts) |
+| `references/feature-notes.md` | traps of each feature on the real build (add-ons, bookmarks, downloads, history, general) |
+| `references/conventions.md` | shape of a test: steps, expected, markers, imports, assertions |
+| `references/test-data.md` | preconditions as data: seeded bookmarks / prefs / add-ons, local pages, files, unique names |
+| `references/web-api.md` | `web`: locators, Shadow DOM, waits, clicks / typing / drag, tabs, frames, JS dialogs |
+| `references/native-ui.md` | `native`: toolbar, address bar, menus, bubbles, Save As / Open dialogs, Explorer, shortcuts |
+| `references/page-objects.md` | adding or changing a page object (`sbtest/pages/`) |
+| `references/debugging.md` | evidence files of a failure, typical errors, after a Chromium merge |
+| `references/framework-map.md` | where things are in the repo, fixtures, markers, tools |
+| `templates/test_template.py` | starting point of a new test file |
+| `templates/explore_template.py` | starting point of a scratch exploration test |
 
 ```
 - [ ] Start: exe path confirmed, setup READY, user told about mouse and keyboard
@@ -61,7 +78,7 @@ Ask for what is missing:
 |---|---|---|
 | test cases as a Confluence/Jira link, pasted text, a table, an export | A, then B per case | the source (a link but no Confluence/Jira skill available -> ask the user to paste the content); the feature when the source does not say |
 | a case ID, or a plain request ("write a test for ...", "check that ...") | B | the case ID (the team's - never invent one); for a new case also its steps, expected result and feature |
-| a test that broke ("BM-114 fails on the new build") | C | the case ID or test name; the error message if the user has one |
+| a test that broke ("<ID> fails on the new build") | C | the case ID or test name; the error message if the user has one |
 
 ## Hard rules (every workflow)
 
@@ -97,14 +114,9 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
    (child pages or attachments too when the user says so); pasted text or a file as is. Save
    it as Markdown, tables kept, to `tests/features/_inbox/<page title>.md`, the source link on
    the first line.
-2. Write each case into `tests/features/<feature>/<area>.md` in the format of
-   `tests/features/README.md` (read it):
-   - feature folders: `addons`, `bookmarks`, `downloads`, `history`, `general`; a new area ->
-     new folder and prefix (steps: `references/conventions.md`, "Files and names");
-   - the source's ID in the heading, plus `- Source: <link> (section/row)`;
-   - steps numbered, one action each, in the author's wording; Expected: one bullet per
-     checkable outcome; preconditions that are data written as data ("Bookmarks bar contains X");
-   - `Type:` web (only page content) / native (browser UI, shortcuts, Windows dialogs) / mixed.
+2. Write each case into its case doc - which file, its name and the format of a case:
+   `references/case-format.md` (read it). The source's ID goes in the heading, with
+   `- Source: <link> (section/row)`; steps, Expected and Precondition as that reference says.
 3. `python -m sbtest.tools.coverage --feature <feature>` lists the cases without a test.
    Automate them with B, one case at a time.
 
@@ -118,13 +130,11 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
 - [ ] 5 green 4 runs in a row, feature green, case + overview updated
 ```
 
-1. **Case.** Write the request as a case (format: `tests/features/README.md`): ID, title,
-   Type, Precondition, numbered Steps, Expected (observable facts); Priority only when the user
-   or the source gives one. File: the feature's doc
-   that already holds the cases of that area and ID series (e.g. `HIS-1xx` live in
-   `history/sanity.md`, browser-UI flows in `toolbar.md`); not clear -> ask the user. Mark the
-   test `@pytest.mark.sanity` only when the user or the source says the case is part of the
-   sanity pass.
+1. **Case.** Write the request as a case in its case doc: ID, title, Type, Precondition,
+   numbered Steps, Expected (observable facts); Priority only when the user or the source
+   gives one. Which doc, its name and the format: `references/case-format.md`. Mark the test
+   `@pytest.mark.sanity` only when the user or the source says the case is part of the sanity
+   pass.
 2. **Explore** what the case touches, on the real build (the commands use the saved exe):
    - Read the feature's section of `references/feature-notes.md` (known traps).
    - Every step has a row in `references/action-catalog.md` and every label it needs is named
@@ -147,15 +157,14 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
 3. **Map** each step to a call with `references/action-catalog.md`. No row fits -> add a
    page-object method (`sbtest/pages/*.py`, `references/page-objects.md`) or a ui-map entry
    (`config/native_ui.yaml`, `references/native-ui.md`), then a row to the catalogue.
-4. **Write** the test in the test file that the `- Automated:` lines of the same case doc
-   name (e.g. `bookmarks/toolbar.md` -> `test_bookmarks_toolbar.py`); a doc with no automated
-   case yet -> a new `tests/features/<feature>/test_<feature>_<area>.py`. Start from
-   `templates/test_template.py`, shaped as in
-   `references/conventions.md`: each case step = `with step("N. ...", expected="..."):`, the
-   case's Expected = assertions on state.
+4. **Write** the test in the test file of its case doc
+   (`<area>.md` -> `tests/features/<feature>/test_<feature>_<area>.py`, `references/case-format.md`);
+   a new file starts from `templates/test_template.py`. Shape: `references/conventions.md` -
+   each case step = `with step("N. ...", expected="..."):`, the case's Expected = assertions on
+   state.
 5. **Prove it.** Each run empties `artifacts/test-results/` first: look at a run's evidence
    before starting the next one. `<test folder>` below = the test's node id with `/` and `::`
-   turned into `_` (e.g. `tests_features_history_test_history_sanity.py_test_x`).
+   turned into `_` (`tests_features_<feature>_test_<feature>_<area>.py_<test name>`).
    a. `python run.py --case <ID>` 4 times in a row, all green (PowerShell:
       `1..4 | % { .\.venv\Scripts\python.exe run.py --case <ID> }`). A failure -> read
       `artifacts/test-results/failures/<test folder>/failure.txt`, then `screen.png` /
@@ -164,7 +173,7 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
       `artifacts/test-results/steps/<test folder>/`: each `NN-I_<kind>.jpg` frames the element
       a step is about to touch - it must be the right one (a wrong one shows even when green).
    c. `python run.py --feature <feature>`: all green.
-   d. Under the case add `- Automated: tests/features/<feature>/test_x.py::test_name`, then
+   d. Under the case add `- Automated: tests/features/<feature>/test_<feature>_<area>.py::<test name>`, then
       run `python -m sbtest.tools.coverage --feature <feature>` (the case shows OK) and
       `python -m sbtest.tools.case_overview`.
 
@@ -191,22 +200,6 @@ build really shows, and say so in your report.
    STATUS line.
 4. Prove it as in B5. Many tests broken after a Chromium merge: `references/debugging.md`,
    "After a Chromium merge".
-
-## Reference files (open only the one the step needs)
-
-| Need | Read |
-|------|------|
-| a case step -> the call (pages, toolbar, bubbles, dialogs, data, asserts) | `references/action-catalog.md` |
-| feature traps (add-ons, bookmarks, downloads, history, general) | `references/feature-notes.md` |
-| test file layout, naming, step numbering, markers, imports | `references/conventions.md` |
-| locators, Shadow DOM, waits, clicks/typing/drag, reading, tabs, frames, JS dialogs | `references/web-api.md` |
-| toolbar/omnibox/menus, bubbles, Save As/Open/folder dialogs, Explorer, shortcuts | `references/native-ui.md` |
-| preconditions: seeded bookmarks/prefs/add-ons, local pages, files, unique values | `references/test-data.md` |
-| adding or changing a page object | `references/page-objects.md` |
-| evidence files, typical failures, after a Chromium merge | `references/debugging.md` |
-| where things are in the repo, fixtures, markers | `references/framework-map.md` |
-
-The tests in `tests/features/` are working examples of every interaction.
 
 ## Before you finish
 

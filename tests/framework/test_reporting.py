@@ -137,11 +137,17 @@ def test_overview_keeps_results_of_cases_not_rerun(tmp_path):
     assert co.previous_results(tmp_path / "missing.md") == {}
 
 
-def test_summary_lists_failures_with_evidence(tmp_path):
+def test_summary_lists_failures_with_evidence(tmp_path, monkeypatch):
     import json
 
+    from sbtest.reporting.cases import parse_file
+    from sbtest.tools import summary
     from sbtest.tools.summary import collect
 
+    doc = tmp_path / "page.md"   # the case doc that gives the failure its title
+    doc.write_text("## DL-003 Clear all\n- Steps:\n  1. Open downloads\n", encoding="utf-8")
+    monkeypatch.setattr(summary, "load_cases",
+                        lambda: {c.id: c for c in parse_file(doc, "downloads", "tests/features/downloads/page.md")})
     ev = tmp_path / "failures" / "t2"
     ev.mkdir(parents=True)
     tests = [

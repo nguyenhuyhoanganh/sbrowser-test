@@ -52,6 +52,7 @@ in `artifacts/test-results/logs/`. Read these before editing code.
 | `the browser shows "Profile error occurred"` (a message box on screen, then "cannot connect to chrome") | profile files past Windows' 260-character limit: profiles move to `%LOCALAPPDATA%\sbtest\profiles` when the repo is deep; still failing -> move the repo to a short folder such as `C:\sbtest` |
 | `invalid session id ... Unable to receive message from renderer` | browser/renderer crashed: real bug (save the log!) or an unstable machine; re-run once to tell them apart |
 | page objects fail right after `session.restart()` | they hold the old `web`: rebuild from `session.web` |
+| an internal page lists nothing (timeout waiting for a row) while `page.png` shows the rows | the page was hidden (`document.visibilityState` "hidden") because other windows covered the browser; `config/default.yaml` keeps it rendering (`--disable-backgrounding-occluded-windows`, `--disable-features=CalculateNativeWinOcclusion`) - check that a `browser.args` in `config/local.yaml` did not drop them |
 | `BrowserCrashed: the browser crashed while closing (exit code 0x80000003)` | product crash on exit (Chromium CHECK); not the test - leave the test as it is |
 
 ## Interactive exploration
@@ -59,7 +60,7 @@ in `artifacts/test-results/logs/`. Read these before editing code.
 ```
 python -m sbtest.tools.dom <page> --interactive --exec "<python using web/site/session>"
 python -m sbtest.tools.uia_dump --url <page> --keys "^d" --find "(?i)done"
-python run.py --case BM-004 --raw --keep-profile -- -x -s --log-cli-level=INFO
+python run.py --case <ID> --raw --keep-profile -- -x -s --log-cli-level=INFO
 ```
 
 `--keep-profile` leaves `artifacts/test-results/profiles/<test>_xxxx` (or

@@ -86,9 +86,6 @@ native.drag_file_from_explorer(path, web=web, target=loc)   # real OS file drag 
 native.screenshot(path) / native.dump(path) / native.close_stray_dialogs()
 ```
 
-Working examples: the tests in `tests/features/` (`test_*_toolbar.py` for toolbar, bubbles
-and popups).
-
 ## Traps
 
 - Native input needs the browser window in the foreground on an unlocked desktop (not a

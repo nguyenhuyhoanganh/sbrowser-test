@@ -3,7 +3,7 @@
     cases = load_cases()            # {"BM-113": Case(...), ...}
     cases["BM-113"].steps           # ["Open 'Static page 1'", "Press Ctrl+D", ...]
 
-Format of a case (see tests/features/README.md)::
+Format of a case (see .agents/skills/sbtest-author/references/case-format.md)::
 
     ## BM-113 Title
     - Priority: High

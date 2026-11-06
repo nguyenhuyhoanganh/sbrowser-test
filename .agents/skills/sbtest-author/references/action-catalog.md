@@ -59,8 +59,8 @@ entry, then a row to this table.
 | add a bookmark | `bm.add_bookmark(name, url)` (right ⋮ > Add bookmark, into the open folder) |
 | add a folder | `bm.add_folder(name)` (Create folder + rename in the tree) |
 | edit name / address | `bm.edit("X", name=..., url=...)` (tick + toolbar Edit) |
-| right-click menu | `bm.item_menu("X", "Edit" / "Delete" / "Open all (2) in new tab")` |
-| delete + snack bar + undo | `toast = bm.delete("X")` ("1 bookmark deleted"), `bm.undo()` |
+| a row's item menu (right-click; cases say "from its item menu") | `bm.item_menu("X", "Edit" / "Delete" / "Open all (2) in new tab")`; after Delete: `bm.wait_toast("deleted")`, `bm.wait_item("X", present=False)` |
+| delete with the toolbar Delete button + snack bar + undo | `toast = bm.delete("X")` ("1 bookmark deleted"), `bm.undo()` |
 | select several / all | `bm.select("A", "B")`, `bm.toolbar("Select all")`, `bm.delete_selected()` ("Delete all") |
 | sort / options menu | `bm.options("Sort by name")` (right ⋮), `bm.organize("Import bookmarks")` (left ⋮) |
 | open a bookmark | `bm.open_item("X")` (new tab on Samsung, switched to) |
@@ -72,8 +72,8 @@ entry, then a row to this table.
 | Request | Do |
 |---|---|
 | Ctrl+D -> toast "Page bookmarked." / "Bookmark added to ..." | `native.hotkey("^d"); toast = native.wait_dialog("bookmark_added")` |
-| toast > Edit -> rename | `toast.click("Edit")`, field `native.element("bookmark_edit_name", in_main=False)` (focus, `native.hotkey("^a", focus=False)`, `native.type_text(...)`), `native.click("bookmark_edit_save")` |
-| is the page bookmarked (star) | `native.focus_page()` first (no star while the omnibox has focus; it takes the focus back when a toast closes - wait for the star, refocusing: BM-114), then `native.exists("bookmark_star_filled")` |
+| toast > Edit -> rename | click Edit at once (the toast closes after a few seconds): `toast.click("Edit")`, field `native.element("bookmark_edit_name", in_main=False)` (focus, `native.hotkey("^a", focus=False)`, `native.type_text(...)`), `native.click("bookmark_edit_save")`; read a field: `native.element("bookmark_edit_url", in_main=False).get_value()` |
+| is the page bookmarked (star) | `native.focus_page()` first (no star while the omnibox has focus; it takes the focus back when a toast closes - wait for the star, refocusing), then `native.exists("bookmark_star_filled")` |
 | remove with the star | `native.wait_dialog_gone("bookmark_added")` (while the toast shows, a click on the star only closes it), then `native.click("bookmark_star_filled")` |
 | Bookmarks panel (toolbar) | `native.click("bookmarks_button")`; folder `native.click("bookmarks_panel_folder", name="Bookmark bar")`; bookmark `native.click("bookmarks_panel_item", name="X")`; buttons `"bookmarks_panel_add_page"`, `"bookmarks_panel_create_folder"`, `"bookmarks_panel_expand"` (opens the manager) |
 
@@ -139,7 +139,7 @@ entry, then a row to this table.
 | drag & drop inside a page | `web.drag_and_drop(a, b, method="html5" / "actions" / "native")` |
 | Windows notification | `native.wait_os_toast("(?i)text")` |
 | print preview | `native.wait_dialog("print")`, `.press("{ESC}")` (the page is blocked meanwhile: no `web.*`) |
-| right-click on a page | `native.context_menu_web(web, "#next", "Open in new tab")` - Samsung labels: Open in new tab / new window / Secret mode / side panel, Save link as, Copy link (GEN-002) |
+| right-click on a page | `native.context_menu_web(web, "#next", "Open in new tab")` - Samsung labels: Open in new tab / new window / Secret mode / side panel, Save link as, Copy link |
 
 ## Reading and asserting
 
@@ -149,5 +149,5 @@ entry, then a row to this table.
 | element state | `web.exists(loc)`, `web.is_checked(loc)`, `web.is_enabled(loc)`, `web.attr(loc, "x")` |
 | any text in the browser UI | `native.wait_text("(?i)regex")`, `native.exists("<key>")` |
 | wait for something | `web.wait_until(lambda: ..., message="what we wait for")` |
-| clipboard text (after Copy link / copy) | `from pywinauto import clipboard`; `clipboard.EmptyClipboard()` before the copy, then `web.wait_until(lambda: clip() == site.url("/pages/page2.html"))` where `clip()` returns `clipboard.GetData()` or `""` on an exception (empty clipboard raises); a copied link is the absolute URL (GEN-010) |
+| clipboard text (after Copy link / copy) | `from pywinauto import clipboard`; `clipboard.EmptyClipboard()` before the copy, then `web.wait_until(lambda: clip() == site.url("/pages/page2.html"))` where `clip()` returns `clipboard.GetData()` or `""` on an exception (empty clipboard raises); a copied link is the absolute URL |
 | step + expected for the report | `with step("2. Do X", expected="Y happens"):` |

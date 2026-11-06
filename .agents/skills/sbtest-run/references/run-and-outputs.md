@@ -12,7 +12,7 @@
 ```
 python run.py --all                                # every feature (tests/features)
 python run.py --feature addons,bookmarks           # addons, bookmarks, downloads, history, general
-python run.py --case ADD-001,BM-004
+python run.py --case <ID>,<ID>
 python run.py --sanity                             # quick pass (with --feature: its sanity cases only)
 python run.py --all --reruns 1                     # re-run failures once to separate flakes
 python run.py --all --record                       # a video per test (step caption, framed clicks)
@@ -21,8 +21,8 @@ python run.py --all --record --share-media all     # share/ gets the video of ev
 python run.py --all --no-native                    # skip tests that drive the real mouse/keyboard
 python run.py --list                               # cases and automation status per feature
 python run.py --feature downloads -- -x -k pause   # raw pytest args after --
-python run.py --case BM-004 --raw                  # pytest's own output (tracebacks, logs) to debug
-python run.py --case BM-004 --keep-profile         # keep the profile folder to open it by hand
+python run.py --case <ID> --raw                     # pytest's own output (tracebacks, logs) to debug
+python run.py --case <ID> --keep-profile            # keep the profile folder to open it by hand
 ```
 
 The build to test is `browser.exe` of `config/local.yaml` (saved by `setup.bat --save`);

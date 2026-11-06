@@ -32,7 +32,7 @@ chromedriver (downloaded when missing), browser start, internal pages, toolbar. 
 .venv\Scripts\python run.py --sanity                  & rem quick pass
 .venv\Scripts\python run.py --all                     & rem every test, about 8-10 minutes
 .venv\Scripts\python run.py --feature bookmarks       & rem addons, bookmarks, downloads, history, general
-.venv\Scripts\python run.py --case BM-114,DL-003
+.venv\Scripts\python run.py --case <ID>,<ID>
 .venv\Scripts\python run.py --list                    & rem cases and automation status
 ```
 

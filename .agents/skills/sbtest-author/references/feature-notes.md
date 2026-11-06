@@ -40,7 +40,7 @@ build changes.
 - 31.0.1.40 crashes on exit about 1 time in 3 under load (exit code 0x80000003, a CHECK in
   `partition_alloc_support.cc`), also when the window is closed like a user; what it had not
   saved yet is lost (a bookmark edited < 2.5 s before closing). `session.restart()` then fails
-  with `BrowserCrashed` (BM-106 and every other restart test).
+  with `BrowserCrashed`.
 - App menu button is "Samsung Browser"; its items carry the shortcut in the name
   ("Downloads Ctrl+J") - `native.menu("Downloads")` matches by prefix.
 
@@ -71,8 +71,11 @@ build changes.
   when the omnibox has NO focus. A page opened by `web.open` leaves the focus there, and when
   the "Page bookmarked." toast closes the focus goes back to the omnibox a moment later: call
   `native.focus_page()` after opening the page and before Ctrl+D, and before a star check wait
-  until the star shows, focusing the page again while it does not (BM-114).
-- Toast "Edit" -> edit bubble: Edits "Bookmark name" / "Bookmark URL" (URL shown without
+  until the star shows, focusing the page again while it does not.
+- The "Page bookmarked." toast closes by itself after a few seconds: click its "Edit" right
+  away (no `focus_page()` or long star wait in between; check the star with `native.exists`).
+- Toast "Edit" -> edit bubble: fields read "Name" / "Web address" on screen, their UIA names are
+  "Bookmark name" / "Bookmark URL" (ui map `bookmark_edit_name` / `_url`; URL shown without
   `http://`), "Create folder in selected folder", Save / Cancel. Toast text is "Page
   bookmarked." or "Bookmark added to <folder>" (page already bookmarked elsewhere).
 
@@ -103,7 +106,8 @@ build changes.
   covers the downloads page toolbar button "Clear download history" (cases call it "Clear
   all"): close it first with
   `native.close_download_bubble()` (clicks its X, ui map `download_bubble_close`), then click
-  (DL-003). Any test that downloads and then uses that toolbar needs this (+ `native`).
+  the button.
+  Any test that downloads and then uses that toolbar needs this (+ `native`).
 - "Show in folder"/"Open" launch Explorer / the default app (outside the browser): assert with
   `native.wait_explorer(...)` and close the window afterwards.
 - Dangerous/blocked file types show a warning instead of finishing - pick safe types.

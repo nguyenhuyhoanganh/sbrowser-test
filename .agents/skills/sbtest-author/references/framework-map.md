@@ -35,7 +35,7 @@ tests/
   features/<feature>/          one folder per feature (addons, bookmarks, downloads, history,
                                general): case docs <area>.md (IDs, input) + tests test_*.py
                                (carry @case ids)
-  features/TESTCASES.md        overview of every case; features/README.md the case format;
+  features/TESTCASES.md        generated overview of every case (python -m sbtest.tools.case_overview)
   features/_inbox/             raw copies of source docs
   framework/                   unit tests of the framework (no browser)
   _scratch/                    throw-away exploration tests (git-ignored)
@@ -66,7 +66,7 @@ artifacts/test-results/        latest run only: report/, share/, failures/, step
 
 ## Markers
 
-- `@pytest.mark.case("ADD-001")` - required on product tests; links to the doc
+- `@pytest.mark.case("<ID>")` - required on product tests; links to the case doc
 - `@pytest.mark.native` - any step uses `native`
 - `@pytest.mark.browser(bookmarks=..., prefs=..., extensions=[...], args=[...], profile=..., start_page=...)`
 - `@pytest.mark.sanity`, `@pytest.mark.slow`

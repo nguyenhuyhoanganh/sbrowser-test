@@ -5,9 +5,15 @@ description: Runs the sbtest suite against a Samsung Internet / Samsung Browser 
 
 # Run, triage, report
 
-Paths: `references/...` is in this skill's folder (`.agents/skills/sbtest-run/`); every
-other path is relative to the repo root. Commands run in the repo root. Writing or fixing
-tests is the `sbtest-author` skill.
+Paths: `references/...` is in this skill's folder `.agents/skills/sbtest-run/`; every other
+path is relative to the repo root. Commands run in the repo root. Writing or fixing tests is
+the `sbtest-author` skill.
+
+## Files of this skill (open one only when a step needs it)
+
+| file | what it is for |
+|---|---|
+| `references/run-and-outputs.md` | every `run.py` option, what the run prints, every file of the result folder `artifacts/test-results/`, the tools that read a finished run |
 
 ## Which steps
 
@@ -74,7 +80,7 @@ again for what the user already gave.
 | everything | `--all` |
 | the quick sanity pass | `--sanity` |
 | some features: add-ons, bookmarks, downloads, history, general | `--feature addons,bookmarks` |
-| some test cases | `--case BM-113,DL-003` |
+| some test cases (their IDs) | `--case <ID>,<ID>` |
 
 Features can be combined; `--feature bookmarks --sanity` runs only the sanity cases of
 bookmarks. To show the user which cases exist (after setup): `python run.py --list` (it always
@@ -197,6 +203,3 @@ and the label table in the answer.
 Verdict, build (Samsung + Chromium version), selection, totals per feature, the label table,
 skipped tests and why, setup's WARN lines, where the result went (Confluence page link, Jira
 issue, zip path) and the local report `artifacts/test-results/report/index.html`.
-
-All `run.py` options, the run's output lines and every file of the result folder:
-`references/run-and-outputs.md`.
