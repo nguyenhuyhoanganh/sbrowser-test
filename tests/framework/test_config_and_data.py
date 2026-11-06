@@ -1,5 +1,6 @@
 import json
 
+import pytest
 import yaml
 
 from sbtest.browser.profile import Profile, expand_dotted
@@ -250,6 +251,29 @@ def test_start_page_url_and_first_open_skips_the_reload(tmp_path):
     nav.open("chrome://history")      # already there: no reload
     nav.open("chrome://history")      # later opens load as usual
     assert gets == ["chrome://history"]
+
+
+@pytest.mark.parametrize("code, crashed", [(0, False), (3, True)])
+def test_restart_reports_a_crash_while_closing(tmp_path, code, crashed):
+    import subprocess
+    import sys
+    from types import SimpleNamespace
+
+    from sbtest.browser.session import BrowserCrashed, BrowserSession
+
+    (tmp_path / "default.yaml").write_text("{}")
+    s = BrowserSession(load_config(config_dir=tmp_path), out_dir=tmp_path)
+    # stands in for the browser: exits with `code` once Browser.close was sent
+    s._attach_proc = subprocess.Popen([sys.executable, "-c", f"raise SystemExit({code})"])
+    s.driver = SimpleNamespace(execute_cdp_cmd=lambda cmd, params: None, quit=lambda: None)
+    started = []
+    s.start = lambda: started.append(1) or s
+    if crashed:
+        with pytest.raises(BrowserCrashed, match="crashed while closing"):
+            s.restart()
+    else:
+        s.restart()
+    assert started == ([] if crashed else [1])
 
 
 def test_setup_save_makes_the_exe_the_default(tmp_path):

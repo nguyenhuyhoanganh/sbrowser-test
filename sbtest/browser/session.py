@@ -31,6 +31,10 @@ from sbtest.utils import find_browser_pid, kill_tree, log, poll
 _RESOLVED: dict[str, tuple[str, str]] = {}  # exe -> (chromium_version, chromedriver) per process
 
 
+class BrowserCrashed(AssertionError):
+    """The browser exited with a non-zero code while closing (a product failure)."""
+
+
 def _bypass_proxy_for_localhost() -> None:
     """HTTP(S)_PROXY env vars (company proxy) must not be used to reach the local
     chromedriver, DevTools or the local test site."""
@@ -285,21 +289,40 @@ class BrowserSession:
         """Close and reopen on the same profile (checks that data/settings persist).
 
         Closes through the browser itself (CDP Browser.close) so it flushes prefs and
-        bookmarks to disk like a user quitting; kills it only if that does not work.
+        bookmarks to disk like a user quitting; kills it only if it has not exited after 15 s.
+        Raises BrowserCrashed when it exits with a non-zero code: it crashed while closing,
+        and changes it had not written yet (a bookmark edited < 2.5 s before) are lost.
         """
+        exit_code = None
         if self.driver is not None:
-            pid = find_browser_pid(str(self.profile.dir))
-            try:
-                self.driver.execute_cdp_cmd("Browser.close", {})
-            except Exception as e:  # noqa: BLE001 - connection drops while closing
-                log.debug("Browser.close: %s", e)
-            if pid:
-                try:
-                    poll(lambda: find_browser_pid(str(self.profile.dir)) is None, 15, message="browser exit")
-                except TimeoutError:
-                    log.warning("browser did not exit gracefully, killing it")
+            exit_code = self._close_gracefully()
         self.stop(remove_profile=False)
+        if exit_code:
+            raise BrowserCrashed(
+                f"the browser crashed while closing (exit code {exit_code & 0xFFFFFFFF:#010x}); "
+                "changes it had not saved yet are lost")
         return self.start()
+
+    def _close_gracefully(self, timeout: float = 15) -> int | None:
+        """CDP Browser.close, then wait for the browser process itself (not a process-list
+        scan: a process that is exiting can drop out of it early). Returns its exit code,
+        None when it is unknown or the browser had to be killed."""
+        pid = self._attach_proc.pid if self._attach_proc else find_browser_pid(str(self.profile.dir))
+        try:
+            proc = psutil.Process(pid) if pid else None
+        except psutil.NoSuchProcess:
+            proc = None
+        try:
+            self.driver.execute_cdp_cmd("Browser.close", {})
+        except Exception as e:  # noqa: BLE001 - connection drops while closing
+            log.debug("Browser.close: %s", e)
+        try:
+            if self._attach_proc:
+                return self._attach_proc.wait(timeout)
+            return proc.wait(timeout) if proc else None
+        except (subprocess.TimeoutExpired, psutil.TimeoutExpired):
+            log.warning("browser did not exit within %ss after Browser.close, killing it", timeout)
+            return None
 
     def __enter__(self) -> "BrowserSession":
         return self.start()
