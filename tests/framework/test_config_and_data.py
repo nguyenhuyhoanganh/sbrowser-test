@@ -253,6 +253,15 @@ def test_start_page_url_and_first_open_skips_the_reload(tmp_path):
     assert gets == ["chrome://history"]
 
 
+def test_feature_switches_are_merged_into_one():
+    from sbtest.browser.session import merge_feature_switches
+
+    args = ["--lang=en-US", "--disable-features=A", "--load-extension=x",
+            "--disable-features=B,A", "--enable-features=C"]
+    assert merge_feature_switches(args) == ["--lang=en-US", "--disable-features=A,B",
+                                            "--load-extension=x", "--enable-features=C"]
+
+
 @pytest.mark.parametrize("code, crashed", [(0, False), (3, True)])
 def test_restart_reports_a_crash_while_closing(tmp_path, code, crashed):
     import subprocess

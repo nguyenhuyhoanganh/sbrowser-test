@@ -31,6 +31,22 @@ from sbtest.utils import find_browser_pid, kill_tree, log, poll
 _RESOLVED: dict[str, tuple[str, str]] = {}  # exe -> (chromium_version, chromedriver) per process
 
 
+def merge_feature_switches(args: list[str]) -> list[str]:
+    """Chromium reads only the last --disable-features / --enable-features: join the values of
+    every occurrence into one switch (in place of the first), keeping the order of the rest."""
+    out: list[str] = []
+    for a in args:
+        name, sep, value = a.partition("=")
+        if sep and name in ("--disable-features", "--enable-features"):
+            first = next((i for i, x in enumerate(out) if x.startswith(name + "=")), None)
+            if first is not None:
+                have = out[first].split("=", 1)[1].split(",")
+                out[first] = f"{name}=" + ",".join(have + [v for v in value.split(",") if v and v not in have])
+                continue
+        out.append(a)
+    return out
+
+
 class BrowserCrashed(AssertionError):
     """The browser exited with a non-zero code while closing (a product failure)."""
 
@@ -112,7 +128,7 @@ class BrowserSession:
             # Chromium 137+ gates --load-extension behind this feature
             args += [f"--load-extension={joined}", f"--disable-extensions-except={joined}",
                      "--disable-features=DisableLoadExtensionCommandLineSwitch"]
-        return args + self.extra_args
+        return merge_feature_switches(args + self.extra_args)
 
     def _seed_prefs(self) -> None:
         if self._prefs_seeded:  # restart(): keep what the test changed

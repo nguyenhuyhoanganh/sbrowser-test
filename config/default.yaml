@@ -30,6 +30,10 @@ browser:
     - --disable-sync
     - --password-store=basic
     - --lang=en-US
+    # keep rendering while other windows cover the browser: otherwise Chromium marks the page
+    # hidden and internal pages render no rows (several --disable-features are merged into one)
+    - --disable-backgrounding-occluded-windows
+    - --disable-features=CalculateNativeWinOcclusion
   # Removes the "controlled by automated test software" infobar.
   exclude_switches: [enable-automation]
   # Preferences merged into Default/Preferences of every fresh profile.
