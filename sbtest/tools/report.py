@@ -1,4 +1,4 @@
-"""(Re)build the sanity report of a run: HTML + Markdown + Confluence-ready folder.
+"""(Re)build the sanity report of a run: HTML + Markdown + the share folder.
 
     python -m sbtest.tools.report                       # the run in artifacts/test-results/
     python -m sbtest.tools.report <folder>              # a copied run folder
@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 
 from sbtest.config import load_config
-from sbtest.reporting.confluence_export import export
+from sbtest.reporting.share_export import export
 from sbtest.reporting.report import generate
 
 
@@ -32,9 +32,9 @@ def main(argv=None) -> int:
     args = p.parse_args(argv)
     run_dir = Path(args.run_dir) if args.run_dir else latest_run()
     index = generate(run_dir)
-    conf = export(run_dir)
+    share = export(run_dir)
     print(f"Report:     {index}")
-    print(f"Confluence: {conf}  (create the page with the Confluence skill, see sbtest-run)")
+    print(f"Share:      {share}  (Confluence page / Jira attachments, see the sbtest-run skill)")
     if args.open and os.name == "nt":
         os.startfile(index)  # noqa: S606 - local file
     return 0

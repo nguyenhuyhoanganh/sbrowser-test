@@ -41,7 +41,7 @@ class Row:
     screenshot: str = ""            # absolute path of the source picture
     video: str = ""                 # absolute path of the --record video
     video_rel: str = ""             # path inside report/ (videos/x.mp4)
-    video_file: str = ""            # Confluence attachment name
+    video_file: str = ""            # attachment name in share/attachments/
     image: str = ""                 # path inside report/ (img/x.jpg)
     priority: str = ""
     type: str = ""

@@ -1,4 +1,4 @@
-"""results.json - the machine-readable outcome of a run (input of the Confluence export)."""
+"""results.json - the machine-readable outcome of a run (input of the report and the share export)."""
 from __future__ import annotations
 
 import datetime as dt

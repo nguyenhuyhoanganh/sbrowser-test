@@ -2,7 +2,8 @@
 
 Automated sanity tests for Samsung Internet (Samsung Browser) for Windows, a Chromium fork.
 Selenium drives web content and internal pages, pywinauto drives the browser UI and Windows
-dialogs. Each run produces a per-build report (HTML, Markdown, Confluence page).
+dialogs. Each run produces a per-build report (HTML, Markdown) and the files to share it on
+Confluence or Jira.
 
 ## Requirements
 
@@ -49,9 +50,10 @@ Vietnamese input tools in English mode, and keep the screen unlocked.
 
 - `report\index.html` - verdict BUILD PASSED / FAILED, one row per case with steps, expected,
   result and screenshot
-- `confluence\` - the same report as a Confluence page with attachments; with `--record` /
-  `--screenshot-steps` it also carries the videos / step pictures of failed cases in a
-  collapsed block per case (`--confluence-steps all` for every case, `none` for none)
+- `share\` - the files to share the run: a Confluence page body and the files to attach to a
+  Confluence page or a Jira issue (the screenshot of every test; with `--record` /
+  `--screenshot-steps` also the videos / step pictures of failed cases - `--share-media all`
+  for every case, `none` for none)
 - `videos\<test>.mp4` - `--record` videos (also played in the report)
 - `failures\<test>\` - `failure.txt`, screenshots, DOM and UI Automation dumps
 
@@ -79,7 +81,7 @@ artifacts/       output of runs and tools, downloaded chromedriver (git-ignored)
 
 Everything an agent needs is in the two skills of `.agents/skills/` (Agent Skills format):
 `sbtest-author` (cases in, stable tests out: intake, explore the real build, write, repair)
-and `sbtest-run` (guided build check: scope, exe, run, triage, Confluence page; `/sbtest-run`).
-Each starts by asking for what it needs (the exe path, the scope or the case) and runs
-`setup.bat` before any real work. Agents that do not load skills by themselves: tell them to
-read `.agents/skills/sbtest-author/SKILL.md` or `.agents/skills/sbtest-run/SKILL.md` first.
+and `sbtest-run` (guided build check: scope, run, triage, result to Confluence / Jira / a zip;
+`/sbtest-run`). Both start the same way: ask for the exe path, run `setup.bat --save`, then ask
+for the rest. Agents that do not load skills by themselves: tell them to read
+`.agents/skills/sbtest-author/SKILL.md` or `.agents/skills/sbtest-run/SKILL.md` first.

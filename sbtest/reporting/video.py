@@ -4,7 +4,7 @@ A background thread grabs the browser's windows (page, toolbar, bubbles, its dia
 times per second, draws the running case step at the bottom and a red frame on each
 interaction for a moment (the same marks as the step pictures, ``sbtest.steps.mark``), and
 pipes the frames to ffmpeg (``imageio-ffmpeg``) which writes H.264 - playable in the HTML report
-and on Confluence. Windows only (it records the screen); recording never fails a test.
+and in the share folder. Windows only (it records the screen); recording never fails a test.
 """
 from __future__ import annotations
 

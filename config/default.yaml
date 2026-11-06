@@ -111,11 +111,12 @@ report:
   # a picture before every interaction (target framed in red) + one per step (flag: --screenshot-steps)
   screenshot_steps: false
   # a video per test instead of pictures: browser windows, step caption, framed interactions
-  # (videos/<test>.mp4, in the report; on Confluence like the step pictures; flag: --record)
+  # (videos/<test>.mp4, in the report; shared like the step pictures; flag: --record)
   record_video: false
-  # step pictures attached to the Confluence page: failed (failed/error cases only), all, none
-  # (a full run with step pictures is ~280 pictures / ~22 MB; flag: --confluence-steps)
-  confluence_step_pictures: failed
+  # cases whose videos / step pictures go in the files shared on Confluence or Jira
+  # (share/attachments/): failed (failed/error cases only), all, none
+  # (a full run with step pictures is ~280 pictures / ~22 MB; flag: --share-media)
+  share_media: failed
 
 # Company proxy. The browser uses the Windows system proxy by default; set
 # browser_proxy only to force one. driver downloads use HTTPS_PROXY/HTTP_PROXY env vars

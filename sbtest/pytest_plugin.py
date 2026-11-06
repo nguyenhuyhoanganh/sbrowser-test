@@ -62,9 +62,9 @@ def pytest_addoption(parser):
                 help="a picture before every interaction (target framed) and after every step()")
     g.addoption("--record", action="store_true", default=False,
                 help="record a video of every test (browser windows, step caption, framed interactions)")
-    g.addoption("--confluence-steps", choices=["failed", "all", "none"],
-                help="cases whose step pictures / videos go on the Confluence page "
-                     "(default report.confluence_step_pictures: failed)")
+    g.addoption("--share-media", choices=["failed", "all", "none"],
+                help="cases whose videos / step pictures go in the files shared on Confluence or Jira "
+                     "(default report.share_media: failed)")
     g.addoption("--sb-live", action="store_true", default=False,
                 help="readable one-line-per-test output (run.py uses it with -p no:terminal)")
 
@@ -85,7 +85,7 @@ def pytest_configure(config):
         "browser.keep_profile": config.getoption("--keep-profile"),
         "report.screenshot_steps": True if config.getoption("--screenshot-steps") else None,
         "report.record_video": True if config.getoption("--record") else None,
-        "report.confluence_step_pictures": config.getoption("--confluence-steps"),
+        "report.share_media": config.getoption("--share-media"),
     })
     run_dir = config.getoption("--run-dir")
     run_dir = Path(run_dir) if run_dir else cfg.path("paths.results")
@@ -431,8 +431,8 @@ def pytest_sessionfinish(session, exitstatus):
         except Exception as e:  # noqa: BLE001 - the run result matters more than the report
             log.warning("report generation failed: %s", e)
         try:
-            from sbtest.reporting.confluence_export import export
+            from sbtest.reporting.share_export import export
 
-            export(path.parent, config._sb_cfg.get("report.confluence_step_pictures") or "failed")
+            export(path.parent, config._sb_cfg.get("report.share_media") or "failed")
         except Exception as e:  # noqa: BLE001
-            log.warning("confluence export failed: %s", e)
+            log.warning("share export failed: %s", e)

@@ -1,5 +1,5 @@
 """Print the result of the latest run: verdict, totals per feature, every failure with its
-evidence, and where the report and the Confluence folder are.
+evidence, and where the report and the share folder are.
 
     python -m sbtest.tools.summary               # artifacts/test-results
     python -m sbtest.tools.summary <run folder>
@@ -42,7 +42,7 @@ def collect(run_dir: Path) -> dict:
                    "average": round(sum(sum(t.values()) for _, t in starts) / len(starts), 1),
                    "phases": {k: round(sum(t.get(k, 0) for _, t in starts) / len(starts), 1) for k in phases},
                    "slowest": {"case": slowest[0], "seconds": round(sum(slowest[1].values()), 1), **slowest[1]}}
-    manifest = run_dir / "confluence" / "manifest.json"
+    manifest = run_dir / "share" / "manifest.json"
     return {
         "build": s["build"], "selection": results["meta"].get("selection", ""), "verdict": f"BUILD {s['verdict']}",
         "totals": dict(s["counts"]), "per_feature": {f: dict(c) for f, c in per_feature.items()},
@@ -50,8 +50,8 @@ def collect(run_dir: Path) -> dict:
         "skipped": [{"case": r.case_id, "reason": r.error} for r in rows if r.result == "skipped"],
         "startup": startup,
         "report": str(run_dir / "report" / "index.html"),
-        "confluence": str(manifest.parent) if manifest.exists() else "",
-        "confluence_title": json.loads(manifest.read_text(encoding="utf-8"))["title"] if manifest.exists() else "",
+        "share": str(manifest.parent) if manifest.exists() else "",
+        "share_title": json.loads(manifest.read_text(encoding="utf-8"))["title"] if manifest.exists() else "",
     }
 
 
@@ -84,8 +84,8 @@ def main(argv=None) -> int:
         print(f"\nbrowser start: {st['average']}s on average for {st['browsers']} start(s) ({phases}); "
               f"slowest {st['slowest']['case']} {st['slowest']['seconds']}s")
     print(f"\nreport:     {data['report']}")
-    if data["confluence"]:
-        print(f"confluence: {data['confluence']}  title: {data['confluence_title']}")
+    if data["share"]:
+        print(f"share:      {data['share']}  title: {data['share_title']}")
     return 0
 
 

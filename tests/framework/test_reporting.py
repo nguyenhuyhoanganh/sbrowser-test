@@ -85,7 +85,7 @@ def _run_with_failure(tmp_path):
 def test_confluence_page_is_well_formed(tmp_path):
     import xml.etree.ElementTree as ET
 
-    from sbtest.reporting.confluence_export import build
+    from sbtest.reporting.share_export import build
     from sbtest.reporting.report import _copy_images
 
     run, results = _run_with_failure(tmp_path)
@@ -97,14 +97,14 @@ def test_confluence_page_is_well_formed(tmp_path):
     ET.fromstring(f'<r xmlns:ac="a" xmlns:ri="r">{page["storage"].replace("&#160;", " ")}</r>')  # Confluence needs XHTML
 
 
-def test_confluence_export_folder(tmp_path):
-    from sbtest.reporting.confluence_export import export
+def test_share_export_folder(tmp_path):
+    from sbtest.reporting.share_export import export
 
     run, _ = _run_with_failure(tmp_path)
     out = export(run)
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["attachments"] and all((out / a).exists() for a in manifest["attachments"])
-    assert (out / "page.md").exists() and (out / "page.storage.html").exists()
+    assert out.name == "share" and (out / "page.md").exists() and (out / "page.storage.html").exists()
 
 def test_clear_dir_empties_only_folders_inside_artifacts(tmp_path):
     import pytest
@@ -196,10 +196,10 @@ def test_draw_marks_frames_targets_and_lists_shortcuts():
     assert img.getpixel((5, 5)) != (255, 255, 255)   # shortcut listed in the strip at the top
 
 
-def test_confluence_step_pictures_of_failed_cases_by_default(tmp_path):
+def test_step_pictures_shared_for_failed_cases_by_default(tmp_path):
     from PIL import Image
 
-    from sbtest.reporting.confluence_export import export
+    from sbtest.reporting.share_export import export
 
     run, results = _run_with_failure(tmp_path)
     pics = []
@@ -217,10 +217,10 @@ def test_confluence_step_pictures_of_failed_cases_by_default(tmp_path):
         assert (('ac:name="expand"' in (out / "page.storage.html").read_text(encoding="utf-8")) == bool(expected))
 
 
-def test_videos_in_the_report_and_on_confluence_for_failed_cases(tmp_path):
+def test_videos_in_the_report_and_shared_for_failed_cases(tmp_path):
     import xml.etree.ElementTree as ET
 
-    from sbtest.reporting.confluence_export import export
+    from sbtest.reporting.share_export import export
     from sbtest.reporting.report import generate
 
     run, results = _run_with_failure(tmp_path)

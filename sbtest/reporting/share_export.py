@@ -1,17 +1,18 @@
-"""Turn a run into a folder that becomes one Confluence page per build.
+"""Turn a run into the files that share it (a Confluence page, a Jira issue, any other tool).
 
-    <run_dir>/confluence/
+    <run_dir>/share/
         manifest.json        {"title", "body_storage", "body_markdown", "attachments": [...]}
-        page.storage.html    Confluence storage format: verdict, build info, one table per
-                             feature (ID, name, steps, expected, result, screenshot)
-        page.md              the same report in Markdown
-        attachments/         one result screenshot per test (JPEG), referenced by the page,
-                             + step pictures (--screenshot-steps) of the cases chosen by
-                             report.confluence_step_pictures: failed (default) | all | none,
-                             shown in one collapsed "Expand" block per case under each table
+        page.storage.html    page body in Confluence storage format: verdict, build info, one
+                             table per feature (ID, name, steps, expected, result, screenshot)
+        page.md              the same body in Markdown (for tools that take Markdown)
+        attachments/         flat folder of files to upload: one result screenshot per test
+                             (<case>_<test>.jpg) + the video / step pictures of the cases
+                             chosen by report.share_media (failed (default) | all | none),
+                             named <case>_...; the page shows them in one collapsed "Expand"
+                             block per case under each table
 
-Same rows as the HTML report (sbtest/reporting/report.py). The upload itself (create the
-page, attach the files) is done with the Confluence skill; nothing here talks to Confluence.
+Same rows as the HTML report (sbtest/reporting/report.py). The upload itself is done by the
+agent (the sbtest-run skill); nothing here talks to Confluence or Jira.
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from sbtest.reporting.cases import load_cases
 from sbtest.reporting.report import RESULT_LABEL, Row, _copy_images, build_info, build_rows, summary, write_markdown
 from sbtest.utils import slug
 
-STEP_PICTURES = ("failed", "all", "none")
+SHARE_MEDIA = ("failed", "all", "none")
 
 COLORS = {"passed": "Green", "failed": "Red", "error": "Red", "skipped": "Grey"}
 
@@ -40,8 +41,8 @@ def _status(result: str) -> str:
             '</ac:parameter></ac:structured-macro>')
 
 
-def _wants_steps(r: Row, mode: str) -> bool:
-    """Does this case get its step pictures / video on the page (mode failed | all | none)?"""
+def _shares_media(r: Row, mode: str) -> bool:
+    """Does this case share its step pictures / video (mode failed | all | none)?"""
     return (any(x.get("files") for x in r.executed) or bool(r.video_rel or r.video_file)) and (
         mode == "all" or (mode == "failed" and r.result in ("failed", "error")))
 
@@ -69,7 +70,7 @@ def _steps_block(r: Row, files: list[str]) -> str:
             + '</ac:parameter><ac:rich-text-body>' + "".join(body) + "</ac:rich-text-body></ac:structured-macro>")
 
 
-def build(rows: list[Row], meta: dict, step_pictures: str = "failed") -> dict:
+def build(rows: list[Row], meta: dict, share_media: str = "failed") -> dict:
     """-> {"title", "storage", "files": [attachment names]} (images already in attachments/)."""
     s = summary(rows, meta)
     c = s["counts"]
@@ -105,20 +106,20 @@ def build(rows: list[Row], meta: dict, step_pictures: str = "failed") -> dict:
                 files.append(name)
                 shot = f'<ac:image ac:width="300"><ri:attachment ri:filename="{esc(name)}"/></ac:image>'
             desc = esc(r.title) + (f"<br/><em>{esc(r.description)}</em>" if r.description else "")
-            if _wants_steps(r, step_pictures):
+            if _shares_media(r, share_media):
                 res += "<p><em>Step pictures below the table.</em></p>"
             st.append(f"<tr><td><strong>{esc(r.case_id)}</strong></td><td>{desc}</td><td>{steps}</td><td>{exp}</td>"
                       f"<td>{res}</td><td>{shot}</td></tr>")
         st.append("</tbody></table>")
-        st.extend(_steps_block(r, files) for r in group if _wants_steps(r, step_pictures))
+        st.extend(_steps_block(r, files) for r in group if _shares_media(r, share_media))
     return {"title": title, "storage": "".join(st), "files": sorted(set(files))}
 
 
-def _flatten_step_pictures(rows: list[Row], out: Path, mode: str) -> None:
-    """Confluence attachments have no folders: attachments/steps/<test>/02-1_click.jpg ->
+def _flatten_media(rows: list[Row], out: Path, mode: str) -> None:
+    """Attachments have no folders (Confluence, Jira): attachments/steps/<test>/02-1_click.jpg ->
     attachments/<case>_02-1_click.jpg, kept only for the chosen cases (``files`` per step)."""
     for r in rows:
-        keep = _wants_steps(r, mode) if mode != "none" else False
+        keep = _shares_media(r, mode) if mode != "none" else False
         for x in r.executed:
             x["files"] = []
             for label, rel in x.get("imgs") or []:
@@ -134,18 +135,18 @@ def _flatten_step_pictures(rows: list[Row], out: Path, mode: str) -> None:
     shutil.rmtree(out / "attachments" / "steps", ignore_errors=True)
 
 
-def export(run_dir: Path, step_pictures: str | None = None) -> Path:
-    """Write <run_dir>/confluence/ and return its path. ``step_pictures``: failed | all | none
-    (default: report.confluence_step_pictures of the config)."""
-    if step_pictures is None:
+def export(run_dir: Path, share_media: str | None = None) -> Path:
+    """Write <run_dir>/share/ and return its path. ``share_media``: failed | all | none
+    (default: report.share_media of the config)."""
+    if share_media is None:
         from sbtest.config import load_config
 
-        step_pictures = load_config().get("report.confluence_step_pictures") or "failed"
-    if step_pictures not in STEP_PICTURES:
-        raise ValueError(f"step_pictures: one of {STEP_PICTURES}, not {step_pictures!r}")
+        share_media = load_config().get("report.share_media") or "failed"
+    if share_media not in SHARE_MEDIA:
+        raise ValueError(f"share_media: one of {SHARE_MEDIA}, not {share_media!r}")
     results = json.loads((run_dir / "results.json").read_text(encoding="utf-8"))
     rows = build_rows(results, load_cases())
-    out = run_dir / "confluence"
+    out = run_dir / "share"
     if out.exists():
         shutil.rmtree(out)
     out.mkdir(parents=True)
@@ -153,16 +154,16 @@ def export(run_dir: Path, step_pictures: str | None = None) -> Path:
     (out / "img").rename(out / "attachments")
     for r in rows:
         r.image = r.image.replace("img/", "attachments/", 1) if r.image else ""
-    for r in rows:   # _wants_steps looks at "files": mark which executed steps have pictures at all
+    for r in rows:   # _shares_media looks at "files": mark which executed steps have pictures at all
         for x in r.executed:
             x["files"] = list(x.get("imgs") or [])
-    _flatten_step_pictures(rows, out, step_pictures)
+    _flatten_media(rows, out, share_media)
     for r in rows:   # videos of the chosen cases -> attachments/<case>_<video>.mp4
-        if r.video_rel and _wants_steps(r, step_pictures):
+        if r.video_rel and _shares_media(r, share_media):
             r.video_file = f"{slug(r.case_id, 30)}_{Path(r.video_rel).name}"
             shutil.copyfile(out / r.video_rel, out / "attachments" / r.video_file)
     shutil.rmtree(out / "videos", ignore_errors=True)
-    page = build(rows, results["meta"], step_pictures)
+    page = build(rows, results["meta"], share_media)
     (out / "page.storage.html").write_text(page["storage"], encoding="utf-8")
     write_markdown(rows, results["meta"], out)
     (out / "report.md").rename(out / "page.md")

@@ -12,7 +12,7 @@ The exe comes from browser.exe in config/local.yaml (or --exe / SB_EXE).
 Outputs in artifacts/test-results/ (the latest run only: emptied when a run starts):
   report/index.html   the sanity report of the build: one row per case (ID, name, steps, expected,
                       result, screenshot of how it ended) + verdict BUILD PASSED / FAILED
-  confluence/         the same report as a Confluence page + attachments (Confluence skill uploads it)
+  share/              Confluence page body + files to attach to a Confluence page or Jira issue
   failures/<test>/    failure.txt, page.png (element outlined), screen.png, dom.txt, uia.txt
   results.json, junit.xml, report.html (raw pytest report), steps/ with --screenshot-steps
   logs/               chromedriver logs; profiles/ with --keep-profile
@@ -53,8 +53,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="a picture before every click/typing (target framed in red) and after every step")
     p.add_argument("--record", action="store_true",
                    help="a video of every test (browser windows, step caption, framed clicks) instead of pictures")
-    p.add_argument("--confluence-steps", choices=["failed", "all", "none"],
-                   help="which cases get their step pictures on the Confluence page (default: failed)")
+    p.add_argument("--share-media", choices=["failed", "all", "none"],
+                   help="which cases get their video / step pictures in the files shared on Confluence or Jira (default: failed)")
     p.add_argument("--raw", action="store_true",
                    help="pytest's own output (tracebacks, captured logs) instead of one line per test")
     p.add_argument("--list", action="store_true", help="print test cases and automation status, then exit")
@@ -75,7 +75,7 @@ def main(argv: list[str] | None = None) -> int:
         pargs += [f"--html={run_dir / 'report.html'}", "--self-contained-html"]
     for flag, value in (("--exe", args.exe), ("--driver", args.driver), ("--feature", args.feature),
                         ("--case", args.case), ("--browser-scope", args.scope),
-                        ("--confluence-steps", args.confluence_steps)):
+                        ("--share-media", args.share_media)):
         if value:
             pargs += [flag, value]
     for flag, on in (("--headless", args.headless), ("--keep-profile", args.keep_profile),
@@ -101,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         from sbtest.tools import summary
 
         print()
-        summary.main([])   # verdict, totals per feature, failures, report and Confluence folder
+        summary.main([])   # verdict, totals per feature, failures, report and share folder
     return int(code)
 
 
