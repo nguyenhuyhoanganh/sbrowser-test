@@ -72,14 +72,14 @@ tests/features/  one folder per feature: case docs (*.md) + their tests; TESTCAS
 tests/framework/ self-tests without a browser: python -m pytest tests/framework -q
 resources/       test data, sample add-on, profile templates, local test site
 artifacts/       output of runs and tools, downloaded chromedriver (git-ignored)
-AGENTS.md        rules for coding agents
 .agents/skills/  agent skills (Agent Skills format)
 ```
 
 ## Agents
 
-Agents that support `AGENTS.md` and Agent Skills load the rules and the skills from this repo:
+Everything an agent needs is in the two skills of `.agents/skills/` (Agent Skills format):
 `sbtest-author` (cases in, stable tests out: intake, explore the real build, write, repair)
 and `sbtest-run` (guided build check: scope, exe, run, triage, Confluence page; `/sbtest-run`).
-Agents without skill support: ask them to
-read `AGENTS.md` first.
+Each starts by asking for what it needs (the exe path, the scope or the case) and runs
+`setup.bat` before any real work. Agents that do not load skills by themselves: tell them to
+read `.agents/skills/sbtest-author/SKILL.md` or `.agents/skills/sbtest-run/SKILL.md` first.
