@@ -85,7 +85,9 @@ from sbtest.web import Keys                       # web.press(Keys.CONTROL, "a")
 ## Markers
 
 - `@pytest.mark.case("<ID>")` - required on product tests; links the test to its case.
-- `@pytest.mark.native` - any step uses `native`.
+- `@pytest.mark.native` - any step uses `native`; the case's `Type` is then `native` or
+  `mixed` (`python -m sbtest.tools.coverage` lists a mismatch). `run.py --native` runs only
+  these tests.
 - `@pytest.mark.browser(...)` - preconditions, below.
 - `@pytest.mark.sanity` - only when the user or the source says the case is in the sanity
   pass; `@pytest.mark.slow` - over ~60 s.

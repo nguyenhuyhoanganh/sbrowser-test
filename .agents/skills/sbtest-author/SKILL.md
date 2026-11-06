@@ -1,6 +1,6 @@
 ---
 name: sbtest-author
-description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per area under tests/features) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Selenium web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
+description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per feature under tests/features, one test file per case) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Selenium web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
 ---
 
 # Creating tests: cases in, stable tests out
@@ -10,6 +10,8 @@ Paths: `references/...` and `templates/...` are in this skill's folder
 in the repo root.
 
 **Never guess a label, selector or behaviour**: look at the real build, then write.
+**Never change an existing test, page object or ui map without asking**: a test that fails,
+a UI that changed - report what you found, ask the user, change code only after a yes.
 Running a whole build and reporting on it is the `sbtest-run` skill, not this one.
 
 ## Files of this skill (open one only when a step needs it)
@@ -82,8 +84,8 @@ Ask for what is missing:
 
 - **IDs come from the team** (any scheme, e.g. `SI-ADD-012`): use them as given; never invent,
   renumber or change one. No ID -> ask the user.
-- **One behaviour per case.** Before adding a case, read the feature's case docs
-  (`tests/features/<feature>/*.md`). An existing case that covers the behaviour is extended,
+- **One behaviour per case.** Before adding a case, read the feature's case doc
+  (`tests/features/<feature>/<feature>.md`). An existing case that covers the behaviour is extended,
   or its test reused, instead of adding a near-duplicate.
 - Preconditions as data (`@pytest.mark.browser(bookmarks=..., prefs=..., extensions=[...])`,
   visited local pages); only the step under test goes through the UI.
@@ -104,7 +106,8 @@ Ask for what is missing:
 
 **web or native?** Inside the page (internal pages too) -> `web` / page objects. Browser
 frame, toolbar, address bar, menus, bubbles, shortcuts (Ctrl+D/H/J...), Windows dialogs,
-Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
+Explorer, real mouse -> `native`. The case's `Type` and the test agree: `native` or `mixed`
+<-> `@pytest.mark.native`, `web` <-> no marker (`coverage` lists every mismatch).
 
 ## A. Intake: source -> case docs
 
@@ -125,7 +128,7 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
 - [ ] 2 UI explored, screenshots read
 - [ ] 3 every step mapped to a call
 - [ ] 4 test written
-- [ ] 5 green 4 runs in a row, feature green, case + overview updated
+- [ ] 5 --repeat 4 green, step pictures right, feature green, case + coverage updated
 ```
 
 1. **Case.** Write the request as a case in its case doc: ID, title, Type, Precondition,
@@ -153,25 +156,24 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
 3. **Map** each step to a call with `references/action-catalog.md`. No row fits -> add a
    page-object method (`sbtest/pages/*.py`, `references/page-objects.md`) or a ui-map entry
    (`config/native_ui.yaml`, `references/native-ui.md`), then a row to the catalogue.
-4. **Write** the test in the test file of its case doc
-   (`tests/features/<feature>/test_<id>.py`, one per case: `references/case-format.md`);
-   a new file starts from `templates/test_template.py`. Shape, fixtures, markers and
+4. **Write** the test in its own file `tests/features/<feature>/test_<id>.py`
+   (`references/case-format.md`), started from `templates/test_template.py`. Shape, fixtures, markers and
    preconditions as data: `references/writing-tests.md` - each case step =
    `with step("N. ...", expected="..."):`, the case's Expected = assertions on state.
 5. **Prove it.** Each run empties `artifacts/test-results/` first: look at a run's evidence
    before starting the next one. `<test folder>` below = the test's node id with `/` and `::`
    turned into `_` (`tests_features_<feature>_test_<id>.py_<test name>`).
-   a. `python run.py --case <ID>` 4 times in a row, all green (PowerShell:
-      `1..4 | % { .\.venv\Scripts\python.exe run.py --case <ID> }`). A failure -> read
+   a. `python run.py --case <ID> --repeat 4`: it ends with "all 4 runs passed", or stops at
+      the first failing run with its evidence kept -> read
       `artifacts/test-results/failures/<test folder>/failure.txt`, then `screen.png` /
-      `page.png`, fix, start counting again.
+      `page.png`, fix, run `--repeat 4` again.
    b. `python run.py --case <ID> --screenshot-steps`, then open
       `artifacts/test-results/steps/<test folder>/`: each `NN-I_<kind>.jpg` frames the element
       a step is about to touch - it must be the right one (a wrong one shows even when green).
    c. `python run.py --feature <feature>`: all green.
    d. Under the case add `- Automated: tests/features/<feature>/test_<id>.py::<test name>`, then
-      run `python -m sbtest.tools.coverage --feature <feature>` (the case shows OK) and
-      `python -m sbtest.tools.case_overview`.
+      run `python -m sbtest.tools.coverage --feature <feature>` (the case shows OK, no
+      "Type mismatch" line) and `python -m sbtest.tools.case_overview`.
 
 The case's wording is the author's guess at the UI: keep its meaning, use the labels the
 build really shows, and say so in your report.
@@ -185,8 +187,8 @@ build really shows, and say so in your report.
      (`BrowserCrashed`, `invalid session id`) -> report it with the evidence; leave the test
      as it is;
    - **UI changed** - the flow still works, different markup, labels or browser UI -> report
-     it as a change the team has to review and ask the user whether to update the test; on a
-     yes dump the page
+     it as a change the team has to review and **ask the user** whether to update the test;
+     only on a yes dump the page
      (`python -m sbtest.tools.dom <page>`) or the browser UI (`python -m sbtest.tools.uia_dump`),
      fix the page object or `config/native_ui.yaml`; keep method names, parameters and return
      types (`references/debugging.md`, "When a page or the browser UI changed");

@@ -4,6 +4,7 @@ evidence, and where the report and the share folder are.
     python -m sbtest.tools.summary               # artifacts/test-results
     python -m sbtest.tools.summary <run folder>
     python -m sbtest.tools.summary --json        # same data as JSON (for agents)
+    python -m sbtest.tools.summary --markdown    # a result block to paste (e.g. a Jira description)
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from pathlib import Path
 
 from sbtest.config import load_config
 from sbtest.reporting.cases import load_cases
-from sbtest.reporting.report import build_rows, summary
+from sbtest.reporting.report import RESULT_LABEL, build_rows, summary
 
 
 def collect(run_dir: Path) -> dict:
@@ -45,6 +46,8 @@ def collect(run_dir: Path) -> dict:
     manifest = run_dir / "share" / "manifest.json"
     return {
         "build": s["build"], "selection": results["meta"].get("selection", ""), "verdict": f"BUILD {s['verdict']}",
+        "started": (results["meta"].get("started") or "")[:16].replace("T", " "),
+        "cases": [{"case": r.case_id, "title": r.title, "outcome": r.result} for r in rows],
         "totals": dict(s["counts"]), "per_feature": {f: dict(c) for f, c in per_feature.items()},
         "failures": failures,
         "skipped": [{"case": r.case_id, "reason": r.error} for r in rows if r.result == "skipped"],
@@ -55,14 +58,34 @@ def collect(run_dir: Path) -> dict:
     }
 
 
+def markdown(data: dict) -> str:
+    """The run as a Markdown block: heading, verdict line, one row per case, the failures."""
+    order = ("passed", "failed", "error", "skipped")
+    out = [f"### sbtest result - {data['build']} - {data['started']}", "",
+           f"**{data['verdict']}** - " + ", ".join(f"{k} {data['totals'].get(k, 0)}" for k in order)
+           + f" (selection: {data['selection']})", "",
+           "| Case | Title | Result |", "|---|---|---|"]
+    out += [f"| {c['case']} | {c['title'].replace('|', '/')} | {RESULT_LABEL.get(c['outcome'], c['outcome'].upper())} |"
+            for c in data["cases"]]
+    if data["failures"]:
+        out += ["", "Failures:"]
+        out += [f"- **{f['case']}** at \"{f['failed_step'] or '-'}\": {f['error'].splitlines()[0] if f['error'] else ''}"
+                for f in data["failures"]]
+    return "\n".join(out)
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("run_dir", nargs="?", help="run folder (default: artifacts/test-results)")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--markdown", action="store_true", help="a result block in Markdown (Jira description, chat)")
     args = p.parse_args(argv)
     data = collect(Path(args.run_dir) if args.run_dir else load_config().path("paths.results"))
     if args.json:
         print(json.dumps(data, indent=2, ensure_ascii=False))
+        return 0
+    if args.markdown:
+        print(markdown(data))
         return 0
     order = ("passed", "failed", "error", "skipped")
     print(f"{data['verdict']}  {data['build']}  (selection: {data['selection']})")

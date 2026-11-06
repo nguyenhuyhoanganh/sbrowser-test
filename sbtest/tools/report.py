@@ -3,6 +3,7 @@
     python -m sbtest.tools.report                       # the run in artifacts/test-results/
     python -m sbtest.tools.report <folder>              # a copied run folder
     python -m sbtest.tools.report --open                # and open index.html
+    python -m sbtest.tools.report --zip                 # and artifacts/sbtest-report.zip to send
 
 Runs write these automatically at the end; use this after editing the case docs (*.md) (the
 report takes names, steps and expected results from there).
@@ -11,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 from pathlib import Path
 
 from sbtest.config import load_config
@@ -29,6 +31,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     p.add_argument("run_dir", nargs="?", help="run folder (default: artifacts/test-results)")
     p.add_argument("--open", action="store_true", help="open the HTML report")
+    p.add_argument("--zip", action="store_true", help="also pack report/ into artifacts/sbtest-report.zip")
     p.add_argument("--share-media", choices=["failed", "all", "none"],
                    help="cases whose video / step pictures go in share/ (default: report.share_media)")
     args = p.parse_args(argv)
@@ -37,6 +40,9 @@ def main(argv=None) -> int:
     share = export(run_dir, args.share_media)
     print(f"Report:     {index}")
     print(f"Share:      {share}  (Confluence page / Jira attachments, see the sbtest-run skill)")
+    if args.zip:
+        out = load_config().path("paths.artifacts") / "sbtest-report"
+        print(f"Zip:        {shutil.make_archive(str(out), 'zip', index.parent)}  (the whole report, opens offline)")
     if args.open and os.name == "nt":
         os.startfile(index)  # noqa: S606 - local file
     return 0

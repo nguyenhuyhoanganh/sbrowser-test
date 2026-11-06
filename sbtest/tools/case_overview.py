@@ -25,7 +25,7 @@ STATUS = {"passed": "✅ Pass", "failed": "❌ Fail", "error": "❌ Error", "ski
 
 
 def test_markers(folder: Path = ROOT / "tests" / "features") -> dict[str, dict]:
-    """``{case_id: {"sanity": bool}}`` from decorators + pytestmark."""
+    """``{case_id: {"sanity": bool, "native": bool}}`` from decorators + pytestmark."""
     out: dict[str, dict] = {}
 
     def marks_of(nodes) -> set[str]:
@@ -52,7 +52,7 @@ def test_markers(folder: Path = ROOT / "tests" / "features") -> dict[str, dict]:
             ids = [a.value for d in fn.decorator_list if isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute)
                    and d.func.attr == "case" for a in d.args if isinstance(a, ast.Constant)]
             for cid in ids:
-                out[cid] = {"sanity": "sanity" in names}
+                out[cid] = {"sanity": "sanity" in names, "native": "native" in names}
     return out
 
 

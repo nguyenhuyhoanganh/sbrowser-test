@@ -19,10 +19,12 @@ python run.py --all --record                       # a video per test (step capt
 python run.py --all --screenshot-steps             # picture per interaction (framed) + per step
 python run.py --all --record --share-media all     # share/ gets the video of every case, not only failed
 python run.py --all --no-native                    # skip tests that drive the real mouse/keyboard
-python run.py --list                               # cases and automation status per feature
+python run.py --feature bookmarks --native         # only tests that use the browser UI (Type native/mixed)
+python run.py --case <ID> --repeat 4               # 4 runs in a row, stops at the first failing one
+python run.py --list                               # cases per feature: [web]/[native]/[mixed], automated or not
 python run.py --feature downloads -- -x -k pause   # raw pytest args after --
-python run.py --case <ID> --raw                     # pytest's own output (tracebacks, logs) to debug
-python run.py --case <ID> --keep-profile            # keep the profile folder to open it by hand
+python run.py --case <ID> --raw                    # pytest's own output (tracebacks, logs) to debug
+python run.py --case <ID> --keep-profile           # keep the profile folder to open it by hand
 ```
 
 The build to test is `browser.exe` of `config/local.yaml` (saved by `setup.bat --save`);
@@ -67,8 +69,12 @@ The folder holds the latest run only: it is emptied when the next run starts. `<
 ## Tools that read a finished run
 
 ```
-python -m sbtest.tools.summary            # the run's summary again (--json: same data as JSON)
-python -m sbtest.tools.report [--open] [--share-media all]   # rebuild report/ and share/ (e.g. after editing case docs)
-python -m sbtest.tools.case_overview      # refresh tests/features/TESTCASES.md with the latest results
-python -m sbtest.tools.coverage           # which case IDs are automated, missing or orphaned
+python -m sbtest.tools.summary              # the run's summary again
+python -m sbtest.tools.summary --markdown   # a result block: verdict + one row per case (Jira description, chat)
+python -m sbtest.tools.summary --json       # the same data as JSON
+python -m sbtest.tools.report               # rebuild report/ and share/ (e.g. after editing case docs)
+python -m sbtest.tools.report --open        # ... and open report/index.html
+python -m sbtest.tools.report --zip         # ... and pack report/ into artifacts/sbtest-report.zip
+python -m sbtest.tools.case_overview        # refresh tests/features/TESTCASES.md (git-ignored) with the latest results
+python -m sbtest.tools.coverage             # which case IDs are automated, missing or orphaned; Type mismatches
 ```

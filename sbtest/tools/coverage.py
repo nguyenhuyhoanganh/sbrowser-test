@@ -3,6 +3,9 @@
     python -m sbtest.tools.coverage                 # table per feature
     python -m sbtest.tools.coverage --missing       # only ids without a test
     python -m sbtest.tools.coverage --feature bookmarks --json
+
+Each case shows its Type ([web] / [native] / [mixed]); an automated case whose Type does not
+match the @pytest.mark.native of its test is listed at the end.
 """
 from __future__ import annotations
 
@@ -43,7 +46,9 @@ def main(argv=None) -> int:
     p.add_argument("--missing", action="store_true")
     p.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
-    docs, auto = doc_cases(), automated_cases()
+    from sbtest.tools.case_overview import test_markers
+
+    docs, auto, marks = doc_cases(), automated_cases(), test_markers()
     rows = []
     for cid, meta in sorted(docs.items()):
         if args.feature and meta["feature"] != args.feature:
@@ -53,8 +58,10 @@ def main(argv=None) -> int:
             continue
         rows.append({"id": cid, **meta, "tests": tests})
     orphans = sorted(set(auto) - set(docs))
+    mismatch = native_mismatch(rows, marks)
     if args.json:
-        print(json.dumps({"cases": rows, "orphans": {o: auto[o] for o in orphans}}, indent=2))
+        print(json.dumps({"cases": rows, "orphans": {o: auto[o] for o in orphans}, "type_mismatch": mismatch},
+                         indent=2))
         return 0
     if not rows and not orphans:
         print("No test cases" + (f" in feature {args.feature!r}" if args.feature else "") + " yet: "
@@ -68,13 +75,29 @@ def main(argv=None) -> int:
             total = sum(1 for x in rows if x["feature"] == feature)
             print(f"\n== {feature or '(root)'}  {done}/{total} automated")
         mark = "OK " if r["tests"] else "-- "
-        hint = f" [{r['type']}]" if r["type"] else ""
+        hint = f" [{(r['type'].split() or ['type?'])[0]}]"
         print(f"  {mark}{r['id']:<9} {r['title'][:70]}{hint}")
         for t in r["tests"]:
             print(f"        {t}")
     if orphans:
         print("\nIds used in tests but missing in the case docs: " + ", ".join(orphans))
+    for m in mismatch:
+        print(f"\nType mismatch {m}")
     return 0
+
+
+def native_mismatch(rows: list[dict], marks: dict[str, dict]) -> list[str]:
+    """Automated cases whose case-doc Type (native / mixed = uses the browser UI) disagrees
+    with the test's @pytest.mark.native."""
+    out = []
+    for r in rows:
+        if not r["tests"] or r["id"] not in marks:
+            continue
+        doc_native = (r["type"].split() or [""])[0] in ("native", "mixed")
+        if doc_native != marks[r["id"]]["native"]:
+            out.append(f"{r['id']}: case doc Type {r['type'] or '(none)'!r}, test "
+                       + ("marked" if marks[r["id"]]["native"] else "not marked") + " @pytest.mark.native")
+    return out
 
 
 if __name__ == "__main__":

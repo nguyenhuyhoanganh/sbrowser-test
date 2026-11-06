@@ -246,3 +246,30 @@ def test_videos_in_the_report_and_shared_for_failed_cases(tmp_path):
     ET.fromstring(f'<r xmlns:ac="a" xmlns:ri="r">{storage.replace("&#160;", " ")}</r>')
     assert not [n for n in json.loads((export(run, "none") / "manifest.json").read_text())["attachments"]
                 if n.endswith(".mp4")]
+
+
+def test_coverage_flags_a_type_that_disagrees_with_the_native_marker():
+    from sbtest.tools.coverage import native_mismatch
+
+    rows = [{"id": "A-1", "type": "native", "tests": ["t.py::a"]},
+            {"id": "A-2", "type": "web", "tests": ["t.py::b"]},
+            {"id": "A-3", "type": "mixed", "tests": ["t.py::c"]},
+            {"id": "A-4", "type": "native", "tests": []}]                   # not automated: no check
+    marks = {"A-1": {"native": True}, "A-2": {"native": True}, "A-3": {"native": False}}
+    assert [m.split(":")[0] for m in native_mismatch(rows, marks)] == ["A-2", "A-3"]
+
+
+def test_summary_markdown_lists_every_case(tmp_path, monkeypatch):
+    from sbtest.tools import summary
+
+    tests = [{"nodeid": "tests/features/bookmarks/test_bm_001.py::test_a", "name": "test_a", "feature": "bookmarks",
+              "cases": ["BM-001"], "outcome": "passed", "duration": 1.0},
+             {"nodeid": "tests/features/bookmarks/test_bm_002.py::test_b", "name": "test_b", "feature": "bookmarks",
+              "cases": ["BM-002"], "outcome": "failed", "duration": 1.0, "failed_step": "2. Delete",
+              "message": "Timed out\nmore"}]
+    (tmp_path / "results.json").write_text(json.dumps({"meta": {"selection": "--feature=bookmarks",
+                                                                "started": "2026-11-07T10:00:00"}, "tests": tests}))
+    monkeypatch.setattr(summary, "load_cases", lambda: {})
+    md = summary.markdown(summary.collect(tmp_path))
+    assert "**BUILD FAILED** - passed 1, failed 1" in md and "2026-11-07 10:00" in md
+    assert "| BM-001 |" in md and "| BM-002 |" in md and '- **BM-002** at "2. Delete": Timed out' in md

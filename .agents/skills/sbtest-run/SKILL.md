@@ -1,6 +1,6 @@
 ---
 name: sbtest-run
-description: Runs the sbtest suite against a Samsung Internet / Samsung Browser for Windows build and reports on it - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then asks what to test (everything, the sanity pass, features, case IDs), whether to record a video or pictures of each test and where the result goes, runs the tests, sorts every failure (regression, UI changed, environment, flaky) and delivers the result - the local HTML report, a Confluence page, a comment on a Jira issue (both with the managing-jira-confluence skill) or a zip file. Use when asked to test or check a build (e.g. after a Chromium merge), run or re-run tests, explain failures, read a run's result, or share results ("run the tests and put the result on Confluence", /sbtest-run).
+description: Runs the sbtest suite against a Samsung Internet / Samsung Browser for Windows build and reports on it - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then asks what to test (everything, the sanity pass, features, case IDs, only the browser-UI tests), whether to record a video or pictures of each test and where the result goes, runs the tests, sorts every failure (regression, UI changed, environment, flaky) and delivers the result - the local HTML report, a new Confluence page, the description of a Jira issue such as a dev ticket (both with the managing-jira-confluence skill) or a zip file. Use when asked to test or check a build (e.g. after a Chromium merge), run or re-run tests, explain failures, read a run's result, or share results ("run the tests and put the result on Confluence", "run the bookmark basics for this ticket", /sbtest-run).
 ---
 
 # Run, triage, report
@@ -8,6 +8,9 @@ description: Runs the sbtest suite against a Samsung Internet / Samsung Browser 
 Paths: `references/...` is in this skill's folder `.agents/skills/sbtest-run/`; every other
 path is relative to the repo root. Commands run in the repo root. Writing or fixing tests is
 the `sbtest-author` skill.
+
+**Never change a test, page object or ui map on your own.** A test that looks wrong, a UI
+that changed: report it, ask the user, and change code only after a yes (step 4).
 
 ## Files of this skill (open one only when a step needs it)
 
@@ -81,10 +84,11 @@ again for what the user already gave.
 | the quick sanity pass | `--sanity` |
 | some features: add-ons, bookmarks, downloads, history, general | `--feature addons,bookmarks` |
 | some test cases (their IDs) | `--case <ID>,<ID>` |
+| the basics for a Jira ticket (e.g. a bookmarks dev ticket) | `--feature <the ticket's feature> --sanity` - say which feature you took from the ticket |
 
-Features can be combined; `--feature bookmarks --sanity` runs only the sanity cases of
-bookmarks. To show the user which cases exist (after setup): `python run.py --list` (it always
-lists every feature).
+Combine freely: `--feature bookmarks --sanity` = the sanity cases of bookmarks; `--native`
+added = only the cases that use the browser UI (case `Type: native` / `mixed`). To show the
+user the cases with their Type (after setup): `python run.py --list`.
 
 "Can the desktop stay free during the run?" - no -> add `--no-native` (tests that use the
 real mouse and keyboard are skipped; say so in the final answer).
@@ -107,8 +111,8 @@ for a full run).
 | answer | then ask for |
 |---|---|
 | only the local report (enough when nobody else needs it) | nothing |
-| a Confluence page | the space and parent page (or a page link to put it under) |
-| a Jira issue | the issue key (e.g. `SBQA-123`) |
+| a new Confluence page | the space and parent page (or a page link to put it under) |
+| a Jira issue's description (e.g. the dev ticket) | the issue key (e.g. `SBQA-123`) |
 | a zip file to send | nothing |
 
 Confluence or Jira chosen, and step 1 records a video or pictures -> also ask "Which cases
@@ -148,9 +152,9 @@ label:
 | label | when | what to do |
 |---|---|---|
 | **regression** | the behaviour differs from the case's Expected, or the error says the browser crashed (`BrowserCrashed`, `invalid session id`) - also when the rerun passed | report it; do not touch the test |
-| **UI changed** | the flow still works, but markup, labels or browser UI differ from the case or the test (e.g. after a Chromium merge) | report it like a regression - it is a change the team has to review; ask the user whether to update the test, and only on a yes do it with the `sbtest-author` skill (`.agents/skills/sbtest-author/SKILL.md`, workflow C) |
-| **environment** | driver/browser mismatch, locked desktop, proxy, machine crash, another window in front ("keyboard input would go to <process>") | fix it (setup's `fix:` lines, free the desktop) and run again |
-| **flaky** | `[RERUN]` then `[PASS]` with any other error, or it passes when run again with no product change | ask the user, then make it stable with the `sbtest-author` skill (workflow C) |
+| **UI changed** | the flow still works, but markup, labels or browser UI differ from the case or the test (e.g. after a Chromium merge) | report it - the team has to review the change. **Ask the user** whether to update the test; only on a yes do it with the `sbtest-author` skill (`.agents/skills/sbtest-author/SKILL.md`, workflow C) |
+| **environment** | wrong chromedriver, locked desktop, proxy, machine crash, another window in front ("keyboard input would go to <process>") | fix the machine (setup's `fix:` lines, free the desktop) and run again |
+| **flaky** | `[RERUN]` then `[PASS]` with any other error, or it passes when run again with no product change | report it; **ask the user** whether to make it stable with the `sbtest-author` skill (workflow C) |
 
 A case that failed once without `--reruns 1` is not yet a regression: run it again first.
 After any fix run the **same command as step 3** again, not only the failed cases: the result
@@ -169,9 +173,8 @@ A case doc edited after the run -> `python -m sbtest.tools.report` rebuilds `rep
 - **Local report** (always): `python -m sbtest.tools.report --open` opens
   `artifacts/test-results/report/index.html` (videos and step pictures are inside it when
   recorded).
-- **Zip file**:
-  `python -c "import shutil; shutil.make_archive('artifacts/sbtest-report', 'zip', 'artifacts/test-results/report')"`
-  -> `artifacts/sbtest-report.zip` (the whole report; it opens offline).
+- **Zip file**: `python -m sbtest.tools.report --zip` -> `artifacts/sbtest-report.zip` (the
+  whole report; it opens offline).
 - **Confluence page** - a NEW page under the destination, with the
   **managing-jira-confluence** skill:
   - title: `title` in `share/manifest.json`;
@@ -180,26 +183,24 @@ A case doc edited after the run -> `python -m sbtest.tools.report` rebuilds `rep
     `<h2>Triage</h2>` and a table case ID | label | reason;
   - attachments: every file listed in `attachments` of `share/manifest.json` - the body shows
     them by file name. Upload in batches if the skill limits a call; check the count.
-- **Jira issue** - a comment on the issue, with the same skill:
+- **Jira issue** - its description, with the same skill:
+  - the result block: `python -m sbtest.tools.summary --markdown` (heading
+    `### sbtest result - <build> - <time>`, verdict, one row per case, the failures), then a
+    line `Triage: <case ID> | <label> | <reason>` per failure and the Confluence link when a
+    page was made too;
+  - put it at the end of the description; an earlier block that starts with
+    `### sbtest result` is replaced; the rest of the description stays as it is;
+  - attach the files of `share/attachments/` that belong to the failed cases (name starts
+    with `<case ID>_`: the screenshot, and the video / step pictures when recorded); with
+    `--share-media all` every file. Upload in batches if needed; check the count. No new
+    Jira issue is created.
 
-  ```
-  <title>
-  Verdict: BUILD PASSED / FAILED - passed N, failed N, error N, skipped N
-  Per feature: bookmarks 8/9, history 15/15, ...
-  Triage: <case ID> | <label> | <reason>   (one line per failure)
-  Confluence: <page link>                  (when made too)
-  ```
-
-  Attach the files of `share/attachments/` that belong to the failed cases (name starts with
-  `<case ID>_`: the screenshot, and the video / step pictures when recorded); with
-  `--share-media all` attach every file. Upload in batches if needed; check the count.
-
-No managing-jira-confluence skill -> do not post: give the user the folder `share/` to upload
-by hand (the page body and its attachments, or the files for the Jira issue), with the title
-and the label table in the answer.
+No managing-jira-confluence skill -> do not post: give the user the folder `share/` and the
+`summary --markdown` block to paste by hand, with the label table in the answer.
 
 ## 7. Final answer
 
 Verdict, build (Samsung + Chromium version), selection, totals per feature, the label table,
-skipped tests and why, setup's WARN lines, where the result went (Confluence page link, Jira
-issue, zip path) and the local report `artifacts/test-results/report/index.html`.
+what you asked the user and what they answered, skipped tests and why, setup's WARN lines,
+where the result went (Confluence page link, Jira issue, zip path) and the local report
+`artifacts/test-results/report/index.html`.

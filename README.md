@@ -33,13 +33,15 @@ chromedriver (downloaded when missing), browser start, internal pages, toolbar. 
 .venv\Scripts\python run.py --all                     & rem every test, about 8-10 minutes
 .venv\Scripts\python run.py --feature bookmarks       & rem addons, bookmarks, downloads, history, general
 .venv\Scripts\python run.py --case <ID>,<ID>
-.venv\Scripts\python run.py --list                    & rem cases and automation status
+.venv\Scripts\python run.py --list                    & rem cases per feature: [web]/[native], automated or not
 ```
 
-Add `--exe "<path>"` when setup used it without `--save`. Other options: `--no-native` (skip tests that drive
-the real UI), `--reruns 1`, `--record` (a video of every test: browser windows, the running
-case step as a caption, clicks and typing framed in red), `--screenshot-steps` (the same as
-pictures: one before every click / typing, plus one per step), `--raw` (pytest's own output).
+Add `--exe "<path>"` when setup used it without `--save`. Other options: `--native` (only the
+tests that drive the browser UI) / `--no-native` (skip them), `--repeat 4` (4 runs in a row,
+stops at the first failure), `--reruns 1`, `--record` (a video of every test: browser windows,
+the running case step as a caption, clicks and typing framed in red), `--screenshot-steps`
+(the same as pictures: one before every click / typing, plus one per step), `--raw` (pytest's
+own output).
 
 While tests run: keep hands off the mouse and keyboard, keep the keyboard on English (US) with
 Vietnamese input tools in English mode, and keep the screen unlocked.
@@ -57,7 +59,9 @@ Vietnamese input tools in English mode, and keep the screen unlocked.
 - `videos\<test>.mp4` - `--record` videos (also played in the report)
 - `failures\<test>\` - `failure.txt`, screenshots, DOM and UI Automation dumps
 
-Case overview with the latest results: `python -m sbtest.tools.case_overview` -> `tests\features\TESTCASES.md`.
+Later: `python -m sbtest.tools.summary` (the result again; `--markdown` for a block to paste),
+`python -m sbtest.tools.report --open` / `--zip` (open the report / pack it to send),
+`python -m sbtest.tools.case_overview` -> `tests\features\TESTCASES.md` (case overview).
 
 ## New Chromium merge
 

@@ -4,6 +4,8 @@
     python run.py --feature addons,bookmarks             # some features
     python run.py --case <ID>,<ID>                       # some test cases
     python run.py --sanity                               # quick pass (@sanity)
+    python run.py --feature bookmarks --native           # only the tests that use the browser UI
+    python run.py --case <ID> --repeat 4                 # 4 runs in a row, stops at the first failure
     python run.py --list                                 # cases per feature and automation status
     python run.py --feature downloads -- -x -k pause     # extra pytest args after --
 
@@ -22,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -44,7 +47,9 @@ def main(argv: list[str] | None = None) -> int:
     sel.add_argument("--feature", help="comma list: addons,bookmarks,downloads,history,general")
     sel.add_argument("--case", help="comma list of case ids, e.g. ADD-001,BM-003")
     p.add_argument("--sanity", action="store_true", help="only tests marked sanity")
-    p.add_argument("--no-native", action="store_true", help="skip tests that drive native UI")
+    native = p.add_mutually_exclusive_group()
+    native.add_argument("--native", action="store_true", help="only tests that drive the browser UI / Windows (native)")
+    native.add_argument("--no-native", action="store_true", help="skip tests that drive native UI")
     p.add_argument("--headless", action="store_true", help="headless browser (implies --no-native)")
     p.add_argument("--scope", choices=["function", "module", "session"], help="browser reuse scope")
     p.add_argument("--reruns", type=int, default=0, help="re-run failed tests N times (separate flakes)")
@@ -57,8 +62,13 @@ def main(argv: list[str] | None = None) -> int:
                    help="which cases get their video / step pictures in the files shared on Confluence or Jira (default: failed)")
     p.add_argument("--raw", action="store_true",
                    help="pytest's own output (tracebacks, captured logs) instead of one line per test")
+    p.add_argument("--repeat", type=int, default=1,
+                   help="run the same selection N times in a row; stops at the first run that fails")
     p.add_argument("--list", action="store_true", help="print test cases and automation status, then exit")
     args = p.parse_args(argv)
+
+    if args.repeat > 1 and not args.list:
+        return repeat(args.repeat, argv, extra)
 
     if args.list:
         from sbtest.tools.coverage import main as coverage_main
@@ -82,7 +92,8 @@ def main(argv: list[str] | None = None) -> int:
                      ("--screenshot-steps", args.screenshot_steps), ("--record", args.record)):
         if on:
             pargs.append(flag)
-    marks = (["sanity"] if args.sanity else []) + (["not native"] if args.no_native or args.headless else [])
+    marks = ((["sanity"] if args.sanity else []) + (["native"] if args.native else [])
+             + (["not native"] if args.no_native or args.headless else []))
     if marks:
         pargs += ["-m", " and ".join(marks)]
     if args.reruns:
@@ -103,6 +114,33 @@ def main(argv: list[str] | None = None) -> int:
         print()
         summary.main([])   # verdict, totals per feature, failures, report and share folder
     return int(code)
+
+
+def without_repeat(argv: list[str]) -> list[str]:
+    out, skip = [], False
+    for a in argv:
+        if skip:
+            skip = False
+        elif a == "--repeat":
+            skip = True
+        elif not a.startswith("--repeat="):
+            out.append(a)
+    return out
+
+
+def repeat(times: int, argv: list[str], extra: list[str]) -> int:
+    """Each run is its own process (a fresh pytest); a failed run keeps its evidence in
+    artifacts/test-results/ because the next run does not start."""
+    one = [sys.executable, str(Path(__file__).resolve()), *without_repeat(argv)] + (["--", *extra] if extra else [])
+    for i in range(1, times + 1):
+        print(f"\n===== run {i}/{times} =====", flush=True)
+        code = subprocess.run(one, cwd=ROOT).returncode
+        if code != 0:
+            print(f"\nrun {i}/{times} FAILED - its evidence is in artifacts/test-results/; "
+                  f"{i - 1} run(s) passed before it", flush=True)
+            return code
+    print(f"\nall {times} runs passed", flush=True)
+    return 0
 
 
 if __name__ == "__main__":
