@@ -2,7 +2,8 @@
 
 ## Evidence first
 
-Every failed test writes `artifacts/test-results/failures/<test id>/` (latest run only):
+Every failed test writes `artifacts/test-results/failures/<test folder>/` (latest run only;
+`<test folder>` = the node id with `/` and `::` turned into `_`):
 
 | file | content |
 |------|---------|
@@ -14,7 +15,7 @@ Every failed test writes `artifacts/test-results/failures/<test id>/` (latest ru
 | `screen.png` | the browser's windows as on screen: frame + native dialogs/bubbles/prompts/menus (other apps and monitors left out; `report.screen_capture: screen` for every monitor, e.g. to see File Explorer) |
 | `uia.txt` | UIA tree of all browser windows - Windows |
 
-`--screenshot-steps` (run.py or pytest) writes `steps/<test>/` (also linked from the report,
+`--screenshot-steps` (run.py or pytest) writes `steps/<test folder>/` (also linked from the report,
 "Step pictures" under each case):
 - `NN-I_<kind>.jpg` - taken right BEFORE interaction I of step NN, with a numbered red frame
   on its target ("2 click Add bookmark", "1 type 'renamed.txt'"); the menu, toast or dialog it
@@ -22,7 +23,7 @@ Every failed test writes `artifacts/test-results/failures/<test id>/` (latest ru
   at the top ("1 keys ^d").
 - `NN_<status>_<step>.jpg` - how step NN ended.
 
-`--record` writes `videos/<test>.mp4` instead: the same frames and the running step as a
+`--record` writes `videos/<test folder>.mp4` instead: the same frames and the running step as a
 caption. Use either to see what a test really touched: a frame on the wrong element = a
 wrong locator or ui-map entry even when the test passes. `results.json` holds every test's
 outcome, steps and evidence paths (used by the report and the Confluence page).
@@ -51,6 +52,7 @@ in `artifacts/test-results/logs/`. Read these before editing code.
 | `the browser shows "Profile error occurred"` (a message box on screen, then "cannot connect to chrome") | profile files past Windows' 260-character limit: profiles move to `%LOCALAPPDATA%\sbtest\profiles` when the repo is deep; still failing -> move the repo to a short folder such as `C:\sbtest` |
 | `invalid session id ... Unable to receive message from renderer` | browser/renderer crashed: real bug (save the log!) or an unstable machine; re-run once to tell them apart |
 | page objects fail right after `session.restart()` | they hold the old `web`: rebuild from `session.web` |
+| `BrowserCrashed: the browser crashed while closing (exit code 0x80000003)` | product crash on exit (Chromium CHECK); not the test - leave the test as it is |
 
 ## Interactive exploration
 

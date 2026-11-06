@@ -51,14 +51,6 @@ Tests and page objects act only through `web.*`, `native.click` / `menu` / `hotk
 `ActionChains` gets no frame - use `native.click(criteria, in_main=False)` for elements in
 other browser windows (add-on popups).
 
-Adding a new action to the framework: record it right before it acts -
-`self._mark("kind", element, "label")` in `sbtest/web/*` (web element),
-`uia.mark("kind", element_or_None, "label", point=(x, y))` in `sbtest/native/*` (screen).
-The picture is taken at that moment and the frame drawn later on a background thread
-(`sbtest/reporting/evidence.py`, video: `sbtest/reporting/video.py`); recording costs
-nothing unless `--screenshot-steps` or `--record` is on. Self-tests:
-`tests/framework/test_reporting.py` (marks, frame drawing, videos in the report).
-
 ## Imports used by tests
 
 ```python
@@ -68,13 +60,3 @@ from sbtest.utils import unique
 from sbtest.data import files                      # generated files
 from sbtest.web import Keys                       # web.press(Keys.CONTROL, "a")
 ```
-
-## Doc update
-
-Under the case in `tests/features/<feature>/<file>.md` set
-`- Automated: tests/features/<feature>/test_x.py::test_name` (or `no (<reason>)`).
-
-## Before you finish
-
-Step 5 of workflow B in SKILL.md (green 4x, feature green, case + overview updated), and
-`python -m pytest tests/framework -q` green if you touched `sbtest/` or the skills.

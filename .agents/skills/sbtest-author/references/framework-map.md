@@ -8,8 +8,7 @@ setup.bat                      prepare a machine: venv + requirements, browser.e
 config/
   default.yaml                 settings: attach mode, chrome:// navigation (shown as internet://),
                                args, prefs, timeouts, page paths, report, network
-  native_ui.yaml               logical names -> UIA criteria of Samsung's browser UI
-                               (verified on Samsung Browser 31), startup_bubbles
+  native_ui.yaml               logical names -> UIA criteria of Samsung's browser UI, startup_bubbles
   local.yaml                   this machine (git-ignored): browser.exe, proxy
 sbtest/
   config.py                    load_config(): default < local < env < CLI; cfg.page_url(name), cfg.display_url(name)
@@ -46,8 +45,6 @@ resources/
   profiles/                    profile templates for @browser(profile=...)
   site/                        local pages: form, inputs, mouse, upload, dialogs, dragdrop, popups,
                                downloads, frames, permissions, toast, shadow, pages/1..3
-README.md                      requirements, setup, run, results, a new Chromium merge
-artifacts/drivers/<major>/     chromedriver per Chromium major (downloaded by setup)
 artifacts/test-results/        latest run only: report/, confluence/, failures/, steps/, logs/,
                                results.json, junit.xml (doctor/, explore/<topic>/, explore/scratch-run/
                                beside it; framework and scratch runs never write here)

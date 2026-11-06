@@ -1,10 +1,10 @@
 # Action catalogue - "the request says" -> "the test does"
 
-Verified on Samsung Browser 31.0.0.55 (Chromium 148). Fixtures: `web`, `native`, `pages`,
+Fixtures: `web`, `native`, `pages`,
 `site`, `session`, `cfg`, `downloads_dir`, `data`, `tmp_path`.
 Logical names in quotes (`"bookmarks_button"`) are keys of `config/native_ui.yaml`;
-`name=` fills their `{name}` placeholder. Anything missing here: explore it (SKILL.md, workflow B step 2)
-and add a page-object method or ui-map entry, then add a row to this table.
+`name=` fills their `{name}` placeholder. Anything missing here: explore it (SKILL.md, B2), add a page-object method or ui-map
+entry, then a row to this table.
 
 ## Contents
 
@@ -17,7 +17,6 @@ and add a page-object method or ui-map entry, then add a row to this table.
 - Add-ons
 - Dialogs, bubbles, files
 - Reading and asserting
-- After writing
 
 ## Preconditions (before the browser starts)
 
@@ -150,11 +149,5 @@ and add a page-object method or ui-map entry, then add a row to this table.
 | element state | `web.exists(loc)`, `web.is_checked(loc)`, `web.is_enabled(loc)`, `web.attr(loc, "x")` |
 | any text in the browser UI | `native.wait_text("(?i)regex")`, `native.exists("<key>")` |
 | wait for something | `web.wait_until(lambda: ..., message="what we wait for")` |
+| clipboard text (after Copy link / copy) | `from pywinauto import clipboard`; `clipboard.EmptyClipboard()` before the copy, then `web.wait_until(lambda: clip() == site.url("/pages/page2.html"))` where `clip()` returns `clipboard.GetData()` or `""` on an exception (empty clipboard raises); a copied link is the absolute URL (GEN-010) |
 | step + expected for the report | `with step("2. Do X", expected="Y happens"):` |
-
-## After writing
-
-- `- Automated: tests/features/...::test_x` under the case; `python -m sbtest.tools.coverage`.
-- New UI names -> `config/native_ui.yaml` with a comment; new selectors -> the page
-  object class + its STATUS docstring; new behaviour -> `references/feature-notes.md`.
-- Add the row you needed to this catalogue.

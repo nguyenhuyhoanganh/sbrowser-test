@@ -1,8 +1,7 @@
 # Feature notes (what works, what bites)
 
-Verified by the sanity suite (`tests/features/<feature>/sanity.md`, `toolbar.md`) on Samsung Browser
-31.0.0.55 (Chromium 148, Windows arm64); notes that say "155" come from build 155. Re-check
-after a Samsung/Chromium update and record what changed here.
+A note that names a build number ("155") holds from that build on. Record here what a new
+build changes.
 
 ## Contents
 
@@ -38,6 +37,10 @@ after a Samsung/Chromium update and record what changed here.
   left side bar with search + filters (`page.side_bar("Image")`).
 - Pages, shortcuts and links that open "a page" open it in a NEW TAB:
   `web.switch_tab(url=cfg.page_url("history"))`.
+- 31.0.1.40 crashes on exit about 1 time in 3 under load (exit code 0x80000003, a CHECK in
+  `partition_alloc_support.cc`), also when the window is closed like a user; what it had not
+  saved yet is lost (a bookmark edited < 2.5 s before closing). `session.restart()` then fails
+  with `BrowserCrashed` (BM-106 and every other restart test).
 - App menu button is "Samsung Browser"; its items carry the shortcut in the name
   ("Downloads Ctrl+J") - `native.menu("Downloads")` matches by prefix.
 

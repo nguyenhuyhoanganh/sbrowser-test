@@ -86,8 +86,8 @@ native.drag_file_from_explorer(path, web=web, target=loc)   # real OS file drag 
 native.screenshot(path) / native.dump(path) / native.close_stray_dialogs()
 ```
 
-Runnable examples of every interaction: the tests in `tests/features/` (`test_*_toolbar.py`
-for toolbar, bubbles and popups) and `references/action-catalog.md`.
+Working examples: the tests in `tests/features/` (`test_*_toolbar.py` for toolbar, bubbles
+and popups).
 
 ## Traps
 

@@ -29,10 +29,6 @@ Every command takes `--exe "<path>"` (the build to test; default `browser.exe` o
 `config/local.yaml`). `--confluence-steps failed|all|none` picks which cases get their video /
 step pictures on the Confluence page (default `failed`).
 
-Durations: `--all` about 8-10 minutes (more on a slow machine), a feature 1-3 minutes. The
-video or the step pictures make a run about 10% longer (~10 MB of videos, ~22 MB of pictures
-for a full run).
-
 Browser reuse: each test gets a fresh browser by default. `--scope module` reuses one per
 test file (much faster; the tests of a file then share state) - not for the build verdict
 unless the user accepts it. A test with a `browser(...)` marker always gets its own browser.
@@ -50,9 +46,9 @@ path, the report paths, and `browser start: <avg>s (browser, chromedriver, start
 
 ## Result folder `artifacts/test-results/`
 
-The folder holds the latest run only: it is emptied when the next run starts. Read (or copy
-elsewhere) the evidence of a failure, and the previous result if it must be kept, before
-starting another run.
+The folder holds the latest run only: it is emptied when the next run starts. `<test folder>`
+= the test's node id with `/` and `::` turned into `_`
+(e.g. `tests_features_history_test_history.py_test_search_history`).
 
 | path | content |
 |------|---------|
@@ -60,16 +56,13 @@ starting another run.
 | `report/report.md` | same report in Markdown |
 | `confluence/` | the same report as a Confluence page: `manifest.json` (title, attachments), `page.storage.html`, `page.md`, `attachments/` (one screenshot per test + videos / step pictures of the cases chosen with `--confluence-steps`) |
 | `results.json` | every test: outcome, case ids, steps, failed step, error, screenshot, evidence paths, browser start times |
-| `failures/<test>/` | `failure.txt` (read first), `page.png` (failing element outlined in red), `screen.png` (browser windows incl. native dialogs), `dom.txt`, `page.html`, `uia.txt`, `alert.txt` |
-| `results/<test>.png` | final screenshot of every passed test (used by the report) |
-| `videos/<test>.mp4` | `--record`: video of the test body - browser windows, the running case step at the bottom, each click / typing framed in red (also played in the report) |
-| `steps/<test>/` | `--screenshot-steps`: `NN-I_<kind>.jpg` right before each interaction, its target framed in red; `NN_<status>_<step>.jpg` how each step ended (also in the report) |
+| `failures/<test folder>/` | `failure.txt` (read first), `page.png` (failing element outlined in red), `screen.png` (browser windows incl. native dialogs), `dom.txt`, `page.html`, `uia.txt`, `alert.txt` |
+| `results/<test folder>.png` | final screenshot of every passed test (used by the report) |
+| `videos/<test folder>.mp4` | `--record`: video of the test body - browser windows, the running case step at the bottom, each click / typing framed in red (also played in the report) |
+| `steps/<test folder>/` | `--screenshot-steps`: `NN-I_<kind>.jpg` right before each interaction, its target framed in red; `NN_<status>_<step>.jpg` how each step ended (also in the report) |
 | `report.html` | raw pytest-html report |
 | `junit.xml` | JUnit result for CI |
 | `logs/` | chromedriver logs (`profiles/` too with `--keep-profile`) |
-
-What each failure file holds and the typical errors behind them: the `sbtest-author` skill,
-`.agents/skills/sbtest-author/references/debugging.md`.
 
 ## Tools that read a finished run
 
