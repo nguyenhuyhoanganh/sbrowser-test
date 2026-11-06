@@ -1,6 +1,6 @@
 """Samsung history page (internet://history; WebDriver URL chrome://history).
 
-STATUS: verified on Samsung Browser 31.0.0.55 (Chromium 148).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
 
 How it differs from Chromium:
 - one history-item per entry; the first entry of a day also carries the day header

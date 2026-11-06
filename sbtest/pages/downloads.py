@@ -1,6 +1,6 @@
 """Samsung downloads page (internet://downloads; WebDriver URL chrome://downloads).
 
-STATUS: verified on Samsung Browser 31.0.0.55 (Chromium 148).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
 
 How it differs from Chromium:
 - left side bar: search + category filter (All, Image, Video, Audio, Document, Others)

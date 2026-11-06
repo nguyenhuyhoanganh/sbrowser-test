@@ -11,7 +11,7 @@ Samsung rewrote the internal pages with its own component set; compared with ups
     cr-checkbox per row           si-select (round check box at the start of each row)
     cr-toggle                     si-toggle
 
-Verified on Samsung Browser 31.0.0.55 (Chromium 148).
+Verified on Samsung Browser 31.0.1.40 (Chromium 151).
 """
 from __future__ import annotations
 

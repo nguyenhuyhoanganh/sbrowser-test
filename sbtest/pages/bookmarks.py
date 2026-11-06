@@ -1,6 +1,6 @@
 """Samsung bookmark manager (internet://bookmarks; WebDriver URL chrome://bookmarks).
 
-STATUS: verified on Samsung Browser 31.0.0.55 (Chromium 148).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
 
 How it differs from Chromium:
 - rows are selected with a round check box (si-select); Edit / Share / Delete / Select all

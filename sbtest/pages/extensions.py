@@ -1,6 +1,6 @@
 """Samsung add-ons page (internet://extensions; WebDriver URL chrome://extensions, title "Add-ons").
 
-STATUS: verified on Samsung Browser 31.0.0.55 (Chromium 148).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
 
 How it differs from Chromium:
 - "Developer mode" is a si-toggle in the LEFT side bar (#devModeToggle); turning it on shows
