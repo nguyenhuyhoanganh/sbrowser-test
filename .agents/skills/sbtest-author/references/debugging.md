@@ -71,10 +71,9 @@ The run prints the failed step under each `[FAIL]`; `run.py --raw` shows pytest'
 | page objects fail right after `session.restart()` | they hold the old `web`: `pages.of(session.web)` |
 | `BrowserCrashed: the browser crashed while closing (exit code 0x...)` | product crash on exit - a regression, leave the test as it is |
 | `invalid session id ... Unable to receive message from renderer` | browser / renderer crashed: a regression (keep the log) or an unstable machine; run again once to tell them apart |
-| `chromedriver ... is version X but the browser is Chromium Y` | wrong driver in `artifacts/drivers/<major>/` (delete the folder, it is downloaded again) or a pinned `browser.chromedriver` |
-| detected Chromium = the Samsung product version (31.x) | the build puts its product version in DevTools `Browser`; the User-Agent `Chrome/N` is used instead - check the `DevTools /json/version` log line, or pin `browser.chromium_version` |
-| `unrecognized Chrome version` / `cannot parse ... Browser` with Google's chromedriver | use a chromedriver built from the fork (`browser.chromedriver`) |
-| chromedriver download fails | read the `curl exit N` line; proxy: `HTTPS_PROXY` or `network.download_proxy`; or copy the driver to `artifacts/drivers/<major>/chromedriver.exe` |
+| `chromedriver ... is version X but the browser is Chromium Y` | a wrong driver in `artifacts/drivers/<major>/`: delete that folder, the right one is downloaded again |
+| the run names a wrong Chromium version | the Chromium major comes from the build's User-Agent (`DevTools /json/version` log line); pin `browser.chromium_version` in `config/local.yaml` only if that is wrong too |
+| chromedriver download fails | read the `curl exit N` line; behind a proxy: `HTTPS_PROXY` or `network.download_proxy`; or copy a chromedriver of that major to `artifacts/drivers/<major>/chromedriver.exe` |
 | `X did not render at ... expected internet://...` | wrong `pages.scheme` / path, or the page object's ROOT no longer matches the page |
 | browser starts but chromedriver can't connect | `--mode attach`; check that the fork keeps `--remote-debugging-port` and reports `Chrome/x.y.z.w` in `/json/version` |
 | `the browser shows "Profile error occurred"`, then "cannot connect to chrome" | profile paths past Windows' 260-character limit: move the repo to a short folder such as `C:\sbtest` |
@@ -84,10 +83,12 @@ The run prints the failed step under each `[FAIL]`; `run.py --raw` shows pytest'
 1. `python run.py --all --reruns 1` on the new build; group the failures by page object /
    ui-map key.
 2. Behaviour differs from the case -> a regression: report it, do not "fix" the test.
-3. Same behaviour, different markup: `dom <page>` (with the data the page needs), fix the class
+3. The flow still works but markup, labels or browser UI changed -> report it as a UI change
+   for the team to review and ask the user; only on a yes change the code (4, 5).
+4. Different markup: `dom <page>` (with the data the page needs), fix the class
    constants (`ROOT`, `ITEMS` ...) of the page object first, then methods whose flow changed
    (e.g. a confirmation that became a native prompt). Keep method names, parameters and return
    types - tests must not change (`references/page-objects.md`).
-4. Same behaviour, different browser UI: `uia_dump`, fix `config/native_ui.yaml`.
-5. Update the page object's STATUS line (`verified on Samsung Browser <version> (Chromium <n>)`)
+5. Different browser UI: `uia_dump`, fix `config/native_ui.yaml`.
+6. Update the page object's STATUS line (`verified on Samsung Browser <version> (Chromium <n>)`)
    and `references/feature-notes.md`; run the feature again.

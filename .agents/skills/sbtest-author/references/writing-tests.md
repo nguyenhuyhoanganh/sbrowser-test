@@ -16,7 +16,7 @@ Which test file: `references/case-format.md`, "Files and names". A new file star
 `templates/test_template.py`.
 
 ```python
-"""Bookmark manager page of bookmarks. Cases: page.md (the case doc next to this file)"""
+"""<ID> Delete a bookmark and undo. Case: bookmarks.md (the case doc next to this file)"""
 import pytest
 
 from sbtest.steps import step
@@ -37,9 +37,10 @@ def test_delete_and_undo(pages):
         bm.wait_item("Static page 2")
 ```
 
-- Module docstring: the area + `Cases: <area>.md`.
-- Test name: `test_<what_it_verifies>` in snake case, not the ID. One test function per case
-  ID; product checks always carry an ID.
+- One case per file (`test_<id>.py`), one test function in it. Module docstring: the ID, the
+  case title and `Case: <feature>.md`.
+- Test name: `test_<what_it_verifies>` in snake case, not the ID; it always carries
+  `@pytest.mark.case("<ID>")`.
 - Step titles start with the case's step number(s): `"2-3. ..."` when merged, `"2a. ..."` /
   `"2b. ..."` when one case step is split (a framework test enforces the numbering). Setup
   that is not a case step (open the page a precondition needs, wait for its state) goes

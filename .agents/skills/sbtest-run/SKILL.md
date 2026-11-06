@@ -1,6 +1,6 @@
 ---
 name: sbtest-run
-description: Runs the sbtest suite against a Samsung Internet / Samsung Browser for Windows build and reports on it - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then asks what to test (everything, the sanity pass, features, case IDs), whether to record a video or pictures of each test and where the result goes, runs the tests, sorts every failure (regression, outdated test, environment, flaky) and delivers the result - the local HTML report, a Confluence page, a comment on a Jira issue (both with the managing-jira-confluence skill) or a zip file. Use when asked to test or check a build (e.g. after a Chromium merge), run or re-run tests, explain failures, read a run's result, or share results ("run the tests and put the result on Confluence", /sbtest-run).
+description: Runs the sbtest suite against a Samsung Internet / Samsung Browser for Windows build and reports on it - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then asks what to test (everything, the sanity pass, features, case IDs), whether to record a video or pictures of each test and where the result goes, runs the tests, sorts every failure (regression, UI changed, environment, flaky) and delivers the result - the local HTML report, a Confluence page, a comment on a Jira issue (both with the managing-jira-confluence skill) or a zip file. Use when asked to test or check a build (e.g. after a Chromium merge), run or re-run tests, explain failures, read a run's result, or share results ("run the tests and put the result on Confluence", /sbtest-run).
 ---
 
 # Run, triage, report
@@ -148,7 +148,7 @@ label:
 | label | when | what to do |
 |---|---|---|
 | **regression** | the behaviour differs from the case's Expected, or the error says the browser crashed (`BrowserCrashed`, `invalid session id`) - also when the rerun passed | report it; do not touch the test |
-| **outdated test** | same behaviour, but markup or labels changed (after a Chromium merge) | ask the user, then fix it with the `sbtest-author` skill (`.agents/skills/sbtest-author/SKILL.md`, workflow C) |
+| **UI changed** | the flow still works, but markup, labels or browser UI differ from the case or the test (e.g. after a Chromium merge) | report it like a regression - it is a change the team has to review; ask the user whether to update the test, and only on a yes do it with the `sbtest-author` skill (`.agents/skills/sbtest-author/SKILL.md`, workflow C) |
 | **environment** | driver/browser mismatch, locked desktop, proxy, machine crash, another window in front ("keyboard input would go to <process>") | fix it (setup's `fix:` lines, free the desktop) and run again |
 | **flaky** | `[RERUN]` then `[PASS]` with any other error, or it passes when run again with no product change | ask the user, then make it stable with the `sbtest-author` skill (workflow C) |
 

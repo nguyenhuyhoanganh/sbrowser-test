@@ -1,10 +1,11 @@
 """Find a chromedriver that matches the browser's Chromium version.
 
-Order:
-1. ``browser.chromedriver`` from config/env/CLI (recommended: built from the fork itself)
+Only the Chromium major has to match: chromedriver N drives any Chromium N build. Order:
+1. ``browser.chromedriver`` from config/env/CLI, when someone set one
 2. ``artifacts/drivers/<major>/chromedriver[.exe]`` already on this machine (offline: copy it there)
-3. Download from Chrome for Testing for the same Chromium *build* (x.y.BUILD), cached into
-   ``artifacts/drivers/<major>/``, with Windows' curl.exe (urllib when there is no curl or it fails). Selenium Manager is not used for this on purpose: it would read the
+3. The latest chromedriver of that major from Chrome for Testing, downloaded with Windows'
+   curl.exe (Windows certificate store: works behind company TLS inspection) and cached into
+   ``artifacts/drivers/<major>/``. Selenium Manager is not used on purpose: it would read the
    Samsung product version from the exe instead of the Chromium one.
 """
 from __future__ import annotations
@@ -17,7 +18,6 @@ import re
 import shutil
 import stat
 import subprocess
-import urllib.request
 import zipfile
 from pathlib import Path
 
@@ -39,12 +39,6 @@ def cft_platform() -> str:
 
 
 _PROXY: str = ""  # set by resolve_chromedriver from config network.download_proxy
-
-
-def _open(url: str, timeout: float):
-    """urlopen honouring HTTPS_PROXY/HTTP_PROXY env vars, or an explicit proxy."""
-    handlers = [urllib.request.ProxyHandler({"http": _PROXY, "https": _PROXY})] if _PROXY else []
-    return urllib.request.build_opener(*handlers).open(url, timeout=timeout)
 
 
 def curl_exe() -> str | None:
@@ -72,15 +66,11 @@ def _curl(curl: str, url: str, timeout: float) -> bytes:
 
 
 def fetch(url: str, timeout: float = 60) -> bytes:
-    """Bytes of ``url``: curl.exe first, Python's urllib when there is no curl or curl fails."""
+    """Bytes of ``url``, downloaded with curl.exe."""
     curl = curl_exe()
-    if curl:
-        try:
-            return _curl(curl, url, timeout)
-        except Exception as e:  # noqa: BLE001 - try urllib before giving up
-            log.warning("download with %s failed (%s), trying Python urllib", curl, e)
-    with _open(url, timeout) as r:
-        return r.read()
+    if not curl:
+        raise RuntimeError(r"no curl.exe (Windows 10 1803+ has C:\Windows\System32\curl.exe)")
+    return _curl(curl, url, timeout)
 
 
 def _get_json(url: str) -> dict:
@@ -88,25 +78,15 @@ def _get_json(url: str) -> dict:
 
 
 def chromedriver_url(chromium_version: str, plat: str | None = None) -> tuple[str, str]:
-    """(version, download url) of the Chrome for Testing chromedriver closest to ``chromium_version``:
-    same build (x.y.BUILD) if available, else the latest of the milestone."""
+    """(version, download url) of the latest Chrome for Testing chromedriver of the Chromium
+    major of ``chromium_version``."""
     plat = plat or cft_platform()
-    build = ".".join(chromium_version.split(".")[:3])
-    candidates = []
-    try:
-        builds = _get_json(f"{CFT}/latest-patch-versions-per-build-with-downloads.json")["builds"]
-        if build in builds:
-            candidates.append(builds[build])
-    except Exception as e:  # noqa: BLE001 - fall back to milestone list
-        log.warning("CfT builds list failed: %s", e)
-    milestones = _get_json(f"{CFT}/latest-versions-per-milestone-with-downloads.json")["milestones"]
-    if str(major(chromium_version)) in milestones:
-        candidates.append(milestones[str(major(chromium_version))])
-    for c in candidates:
-        for d in c.get("downloads", {}).get("chromedriver", []):
-            if d["platform"] == plat:
-                return c["version"], d["url"]
-    raise RuntimeError(f"No chromedriver for Chromium {chromium_version} ({plat}) on Chrome for Testing")
+    milestone = _get_json(f"{CFT}/latest-versions-per-milestone-with-downloads.json")["milestones"].get(
+        str(major(chromium_version)), {})
+    for d in milestone.get("downloads", {}).get("chromedriver", []):
+        if d["platform"] == plat:
+            return milestone["version"], d["url"]
+    raise RuntimeError(f"No chromedriver {major(chromium_version)} ({plat}) on Chrome for Testing")
 
 
 def download_chromedriver(chromium_version: str, target_dir: Path) -> Path:
@@ -168,6 +148,6 @@ def resolve_chromedriver(configured: str, chromium_version: str | None, drivers_
         return str(download_chromedriver(chromium_version, local.parent))
     except Exception as e:
         raise RuntimeError(
-            f"Could not download chromedriver for Chromium {chromium_version} ({e}). Behind a proxy set "
-            f"HTTPS_PROXY or network.download_proxy, or put the driver at {local} / set browser.chromedriver."
+            f"Could not download chromedriver {major(chromium_version)} ({e}). Behind a proxy set "
+            f"HTTPS_PROXY or network.download_proxy, or copy a chromedriver {major(chromium_version)} to {local}."
         ) from e

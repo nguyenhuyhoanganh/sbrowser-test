@@ -97,7 +97,7 @@ def render(results: dict[str, str] | None) -> str:
     w("")
     automated = sum(c.id in marks for c in cases.values())
     w(f"**{total} test cases**, {automated} automated ({total - native} web, {native} native)."
-      if total else "**No test cases yet.** Case docs go to `tests/features/<feature>/<area>.md` "
+      if total else "**No test cases yet.** Case docs go to `tests/features/<feature>/<feature>.md` "
       "(format: `.agents/skills/sbtest-author/references/case-format.md`).")
     w("")
     w("| Feature | Prefix | Cases | Web | Native | Sanity |")

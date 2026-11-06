@@ -38,11 +38,11 @@ def major(version: str) -> int:
 def chromium_version_from(info: dict) -> str | None:
     """Chromium version from DevTools ``/json/version``.
 
-    ``Browser`` normally holds the full Chromium version ("Chrome/148.0.7778.217"), but some
-    Samsung builds put the product version there ("Chrome/31.0.1.21" on a Chromium 157 build).
-    The User-Agent keeps the real Chromium major, reduced to "Chrome/157.0.0.0" (UA reduction):
-    when the two majors differ, trust the User-Agent (the driver lookup falls back from the
-    exact build to the latest driver of that major)."""
+    The User-Agent is trusted for the Chromium major ("Chrome/157.0.0.0", UA reduction): builds
+    for testers may still carry a wrong number in ``Browser`` (the product version
+    "Chrome/31.0.1.21" on a Chromium 157 build). ``Browser`` only adds the full version
+    ("148.0.7778.217", shown in the report) when its major agrees. chromedriver only needs the
+    major."""
     browser = parse_chromium_version(info.get("Browser", ""))
     ua = parse_chromium_version(info.get("User-Agent", ""))
     if browser and ua and major(browser) != major(ua):

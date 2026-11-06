@@ -113,8 +113,8 @@ def _keyboard_and_network() -> None:
 
     curl = curl_exe()
     report(OK if curl else WARN, f"Download tool: {curl}" if curl else "No curl.exe found",
-           "chromedriver will be downloaded with Python, which fails behind a company SSL check; "
-           "copy artifacts\\drivers\\<major>\\chromedriver.exe from another machine if it does")
+           "chromedriver cannot be downloaded (Windows 10 1803+ has C:\\Windows\\System32\\curl.exe): "
+           "copy a chromedriver of the build's Chromium major to artifacts\\drivers\\<major>\\")
 
 
 def _check_typing() -> None:

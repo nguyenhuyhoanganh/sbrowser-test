@@ -9,30 +9,24 @@
 
 ## Files and names
 
-Every case lives in a Markdown case doc; its test lives next to it. One case doc <-> one test
-file, with the same `<area>`:
+One case doc per feature lists all its cases; every case has its own test file next to it:
 
 ```
-tests/features/<feature>/<area>.md                  case doc (one or more cases)
-tests/features/<feature>/test_<feature>_<area>.py   the tests of those cases
+tests/features/<feature>/<feature>.md      every case of the feature, in ID order
+tests/features/<feature>/test_<id>.py      the test of one case (one test function)
 ```
 
 - `<feature>`: the product part the case tests - `addons`, `bookmarks`, `downloads`,
   `history`, `general` (browsing: pages, tabs, navigation, context menus). A new product part
   (e.g. `settings`) -> new folder + `FEATURES` in `sbtest/pytest_plugin.py` + a row in
   `FEATURES` of `sbtest/tools/case_overview.py`.
-- `<area>`, in this order:
-  1. the source splits its cases into named groups below the feature (sections or pages
-     such as "Sanity", "Sync") -> that group's name in snake case (`sanity`);
-  2. otherwise - also a source that is just the feature ("Bookmarks") or one case - from the
-     case's Type: `web` -> `page`, `native` or `mixed` -> `toolbar`.
-- A case doc with that name already exists -> add the case to it (and its test to the
-  matching test file). Never a second doc for the same `<area>`.
+- `<id>`: the case ID in lower case with `-` turned into `_` (`BM-001` -> `test_bm_001.py`,
+  `SI-ADD-012` -> `test_si_add_012.py`).
+- No other grouping: a "Sanity" section of the source, web or native, toolbar or page - all
+  go into `<feature>.md`; a sanity case is only marked `@pytest.mark.sanity` in its test.
 
-Examples: a web case of the bookmark manager -> `bookmarks/page.md` +
-`bookmarks/test_bookmarks_page.py`; Ctrl+D on a page -> `bookmarks/toolbar.md` +
-`bookmarks/test_bookmarks_toolbar.py`; a source page "Downloads sanity" ->
-`downloads/sanity.md` + `downloads/test_downloads_sanity.py`.
+Example: BM-001 and BM-002 -> both in `bookmarks/bookmarks.md`, tests
+`bookmarks/test_bm_001.py` and `bookmarks/test_bm_002.py`.
 
 Raw copies of a source (Confluence page, export, pasted text) go to
 `tests/features/_inbox/<source title>.md` first (workflow A); only the case docs above are read
@@ -59,7 +53,7 @@ The test carries the same ID: `@pytest.mark.case("<ID>")`.
 - Expected:
   - "Static page 1" is no longer listed
   - A snack bar "1 bookmark deleted" with Undo shows
-- Automated: tests/features/bookmarks/test_bookmarks_page.py::test_delete_bookmark
+- Automated: tests/features/bookmarks/test_bm_001.py::test_delete_bookmark
 ```
 
 - Heading: `##`, the ID, one space, the title.

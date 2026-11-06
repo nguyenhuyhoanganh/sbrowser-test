@@ -154,13 +154,13 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
    page-object method (`sbtest/pages/*.py`, `references/page-objects.md`) or a ui-map entry
    (`config/native_ui.yaml`, `references/native-ui.md`), then a row to the catalogue.
 4. **Write** the test in the test file of its case doc
-   (`<area>.md` -> `tests/features/<feature>/test_<feature>_<area>.py`, `references/case-format.md`);
+   (`tests/features/<feature>/test_<id>.py`, one per case: `references/case-format.md`);
    a new file starts from `templates/test_template.py`. Shape, fixtures, markers and
    preconditions as data: `references/writing-tests.md` - each case step =
    `with step("N. ...", expected="..."):`, the case's Expected = assertions on state.
 5. **Prove it.** Each run empties `artifacts/test-results/` first: look at a run's evidence
    before starting the next one. `<test folder>` below = the test's node id with `/` and `::`
-   turned into `_` (`tests_features_<feature>_test_<feature>_<area>.py_<test name>`).
+   turned into `_` (`tests_features_<feature>_test_<id>.py_<test name>`).
    a. `python run.py --case <ID>` 4 times in a row, all green (PowerShell:
       `1..4 | % { .\.venv\Scripts\python.exe run.py --case <ID> }`). A failure -> read
       `artifacts/test-results/failures/<test folder>/failure.txt`, then `screen.png` /
@@ -169,7 +169,7 @@ Explorer, real mouse -> `native`, and mark the test `@pytest.mark.native`.
       `artifacts/test-results/steps/<test folder>/`: each `NN-I_<kind>.jpg` frames the element
       a step is about to touch - it must be the right one (a wrong one shows even when green).
    c. `python run.py --feature <feature>`: all green.
-   d. Under the case add `- Automated: tests/features/<feature>/test_<feature>_<area>.py::<test name>`, then
+   d. Under the case add `- Automated: tests/features/<feature>/test_<id>.py::<test name>`, then
       run `python -m sbtest.tools.coverage --feature <feature>` (the case shows OK) and
       `python -m sbtest.tools.case_overview`.
 
@@ -184,7 +184,9 @@ build really shows, and say so in your report.
    - **regression** - the behaviour differs from the case's Expected, or the browser crashed
      (`BrowserCrashed`, `invalid session id`) -> report it with the evidence; leave the test
      as it is;
-   - **outdated test** - same behaviour, different markup or labels -> dump the page
+   - **UI changed** - the flow still works, different markup, labels or browser UI -> report
+     it as a change the team has to review and ask the user whether to update the test; on a
+     yes dump the page
      (`python -m sbtest.tools.dom <page>`) or the browser UI (`python -m sbtest.tools.uia_dump`),
      fix the page object or `config/native_ui.yaml`; keep method names, parameters and return
      types (`references/debugging.md`, "When a page or the browser UI changed");

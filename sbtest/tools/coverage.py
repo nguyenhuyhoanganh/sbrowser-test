@@ -58,7 +58,7 @@ def main(argv=None) -> int:
         return 0
     if not rows and not orphans:
         print("No test cases" + (f" in feature {args.feature!r}" if args.feature else "") + " yet: "
-              "case docs go to tests/features/<feature>/<area>.md (format: .agents/skills/sbtest-author/references/case-format.md).")
+              "case docs go to tests/features/<feature>/<feature>.md (format: .agents/skills/sbtest-author/references/case-format.md).")
         return 0
     feature = None
     for r in rows:

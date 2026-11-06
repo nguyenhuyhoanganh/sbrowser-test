@@ -1,8 +1,7 @@
 # Feature notes (what works, what bites)
 
-The one place for the product's traps; other references only point here. Versions are written
-"Samsung 31.0.1.40" (the exe's product version) or "Chromium 155+" (the Chromium the build is
-based on, from that version on). Record here what a new build changes.
+The one place for the product's traps; other references only point here. What a build does
+differently from these notes: report it and let the user verify it, then record it here.
 
 ## Contents
 
@@ -66,8 +65,8 @@ based on, from that version on). Record here what a new build changes.
 - Ctrl+D bookmarks at once: toast "Page bookmarked." [Edit] (`dialogs.bookmark_added`), no
   bubble; the star becomes "Remove from Bookmarks" (clicking it removes the bookmark, once
   the toast is gone - see "Whole product").
-- The star (`StarView` up to Chromium 151, `PageActionView` on Chromium 155+; the ui map
-  matches both) only shows when the omnibox has NO focus. A page opened by `web.open` leaves the focus there, and when
+- The star (class `StarView` or `PageActionView` depending on the build; the ui map matches
+  both) only shows when the omnibox has NO focus. A page opened by `web.open` leaves the focus there, and when
   the "Page bookmarked." toast closes the focus goes back to the omnibox a moment later: call
   `native.focus_page()` after opening the page and before Ctrl+D, and before a star check wait
   until the star shows, focusing the page again while it does not.
@@ -102,7 +101,7 @@ based on, from that version on). Record here what a new build changes.
   X (remove, snack bar + Undo). In-progress row: progress bar + text buttons Pause/Resume,
   Cancel (`action(name, "Pause")`). Cancel REMOVES the row ("x removed from Downloads." + Undo);
   the toolbar Downloads bubble shows "Canceled". Toolbar: "Clear download history".
-- A finished download opens the toolbar Downloads bubble over the page. On Chromium 155+ it
+- A finished download opens the toolbar Downloads bubble over the page. On some builds it
   covers the downloads page's toolbar button "Clear download history" (cases call it "Clear
   all"): any test that downloads and then uses that toolbar first calls
   `native.close_download_bubble()` (its X, ui map `download_bubble_close`; the test is
