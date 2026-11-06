@@ -41,7 +41,7 @@ Prefer `id`, `data-*`, `aria-*`; never generated class names (`css-1x2y3z`).
 | `open_dialog()` / `dialog_text()` / `dialog_input(id)` / `dialog_button(text)` / `wait_dialog_closed()` | in-page dialog |
 | `q(value)` | quote for CSS attribute selectors: `f"[aria-label={q(name)}]"` |
 
-Each page object's methods: the action catalogue of the `sbtest-explore` skill, or the
+Each page object's methods: `references/action-catalog.md`, or the
 class itself in `sbtest/pages/`.
 
 ## Adding a new page

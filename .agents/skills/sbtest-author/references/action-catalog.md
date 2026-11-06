@@ -3,7 +3,7 @@
 Verified on Samsung Browser 31.0.0.55 (Chromium 148). Fixtures: `web`, `native`, `pages`,
 `site`, `session`, `cfg`, `downloads_dir`, `data`, `tmp_path`.
 Logical names in quotes (`"bookmarks_button"`) are keys of `config/native_ui.yaml`;
-`name=` fills their `{name}` placeholder. Anything missing here: explore it (SKILL.md step 2)
+`name=` fills their `{name}` placeholder. Anything missing here: explore it (SKILL.md, workflow B step 2)
 and add a page-object method or ui-map entry, then add a row to this table.
 
 ## Contents
@@ -156,5 +156,5 @@ and add a page-object method or ui-map entry, then add a row to this table.
 
 - `- Automated: tests/features/...::test_x` under the case; `python -m sbtest.tools.coverage`.
 - New UI names -> `config/native_ui.yaml` with a comment; new selectors -> the page
-  object class + its STATUS docstring; new behaviour -> `.agents/skills/sbtest-author/references/feature-notes.md`.
+  object class + its STATUS docstring; new behaviour -> `references/feature-notes.md`.
 - Add the row you needed to this catalogue.

@@ -76,5 +76,5 @@ Under the case in `tests/features/<feature>/<file>.md` set
 
 ## Before you finish
 
-Step 4 of the `sbtest-explore` skill (green 4x, feature green, case + overview updated), and
+Step 5 of workflow B in SKILL.md (green 4x, feature green, case + overview updated), and
 `python -m pytest tests/framework -q` green if you touched `sbtest/` or the skills.

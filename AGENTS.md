@@ -6,14 +6,16 @@
 - Windows only. Two steps: `setup.bat --exe "<SamsungInternet.exe>"` (installs packages, checks
   the machine with doctor, gets chromedriver; must end with READY), then `python run.py ...`
   with the same `--exe`. Re-check only: `python -m sbtest.tools.doctor`.
-- Skills (Agent Skills format) in `.agents/skills/<name>/SKILL.md`: `sbtest-intake` (test
-  cases/links -> case docs `tests/features/<feature>/*.md`), `sbtest-explore` (request -> explore the real UI -> case + test;
-  action catalogue), `sbtest-author` (framework API, conventions), `sbtest-run` (run, triage,
-  per-build report, Confluence), `sbtest` (step by step: ask scope, exe and
-  Confluence target -> setup.bat (check) -> run -> triage -> publish with `managing-jira-confluence`;
-  `/sbtest` where the agent offers skills as commands). If your agent does not load skills
-  itself, read the SKILL.md that matches the task first, then the reference files it points
-  to. Confluence itself is handled by the Confluence skill `managing-jira-confluence`.
+- Skills (Agent Skills format) in `.agents/skills/<name>/SKILL.md`, one per job:
+  - `sbtest-author` - make tests: cases from links/pasted text -> case docs
+    `tests/features/<feature>/*.md`, a case or request -> explore the real UI -> a stable test,
+    repair a broken test; framework reference (API, data, page objects, conventions, traps).
+  - `sbtest-run` - run tests and report: step by step (ask scope, evidence, exe and Confluence
+    target -> setup.bat (check) -> run -> triage -> publish with `managing-jira-confluence`;
+    `/sbtest-run` where the agent offers skills as commands).
+  If your agent does not load skills itself, read the SKILL.md that matches the task first,
+  then the reference files it points to. Confluence itself is handled by the Confluence skill
+  `managing-jira-confluence`.
 - `.agents/skills/` is the only copy of the skills: edit them there; `tests/framework` checks
   their frontmatter and links.
 - Results of the latest run (emptied when a run starts): `artifacts/test-results/`, report

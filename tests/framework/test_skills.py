@@ -25,7 +25,7 @@ def frontmatter(path):
 
 
 def test_skills_found():
-    assert {p.parent.name for p in SKILLS} >= {"sbtest-author", "sbtest-explore", "sbtest-intake", "sbtest-run"}
+    assert {p.parent.name for p in SKILLS} >= {"sbtest-author", "sbtest-run"}
 
 
 @pytest.mark.parametrize("path", SKILLS, ids=lambda p: p.parent.name)

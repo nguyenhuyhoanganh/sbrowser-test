@@ -78,6 +78,7 @@ AGENTS.md        rules for coding agents
 ## Agents
 
 Agents that support `AGENTS.md` and Agent Skills load the rules and the skills from this repo:
-`sbtest` (guided build check: scope, exe, run, triage, Confluence page), `sbtest-run`,
-`sbtest-explore`, `sbtest-author`, `sbtest-intake`. Agents without skill support: ask them to
+`sbtest-author` (cases in, stable tests out: intake, explore the real build, write, repair)
+and `sbtest-run` (guided build check: scope, exe, run, triage, Confluence page; `/sbtest-run`).
+Agents without skill support: ask them to
 read `AGENTS.md` first.

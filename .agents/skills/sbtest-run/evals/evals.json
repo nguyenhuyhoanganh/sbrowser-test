@@ -1,6 +1,47 @@
 [
   {
-    "skills": ["sbtest-run"],
+    "skills": [
+      "sbtest-run"
+    ],
+    "query": "/sbtest-run",
+    "files": [],
+    "expected_behavior": [
+      "Asks which part to test, then the SamsungInternet.exe path, then the Confluence destination, waiting for each answer",
+      "Asks whether to record each test (video / pictures / no) as options, and only then which cases get them on Confluence",
+      "Adds --record (or --screenshot-steps, --confluence-steps) to run.py exactly as answered",
+      "Runs setup.bat with --exe before the tests and stops on NOT READY",
+      "Runs run.py with the chosen arguments and --exe, then reads sbtest.tools.summary",
+      "Asks for confirmation before creating the Confluence page"
+    ]
+  },
+  {
+    "skills": [
+      "sbtest-run"
+    ],
+    "query": "Test bookmarks and downloads of the build in D:/builds/155/SamsungInternet.exe and put it under SBQA > Sanity",
+    "files": [],
+    "expected_behavior": [
+      "Does not ask again for what the user already gave (scope, exe, destination)",
+      "Runs python run.py --feature bookmarks,downloads --exe \"D:/builds/155/SamsungInternet.exe\"",
+      "Publishes with the managing-jira-confluence skill: manifest title, page.storage.html, every attachment, a Triage section if there are failures"
+    ]
+  },
+  {
+    "skills": [
+      "sbtest-run"
+    ],
+    "query": "Run the sanity pass, I need to keep using this machine",
+    "files": [],
+    "expected_behavior": [
+      "Uses --sanity --no-native and says in the report that native tests were skipped",
+      "After a fix, re-runs the same full selection instead of only the failed cases",
+      "Quotes verdict and totals from sbtest.tools.summary instead of guessing"
+    ]
+  },
+  {
+    "skills": [
+      "sbtest-run"
+    ],
     "query": "New build is in D:/builds/155, run the sanity pass and tell me if it is OK",
     "files": [],
     "expected_behavior": [
@@ -10,7 +51,9 @@
     ]
   },
   {
-    "skills": ["sbtest-run"],
+    "skills": [
+      "sbtest-run"
+    ],
     "query": "Run bookmarks and downloads, then publish the report to Confluence under 'SB QA / Sanity'",
     "files": [],
     "expected_behavior": [
@@ -20,7 +63,9 @@
     ]
   },
   {
-    "skills": ["sbtest-run"],
+    "skills": [
+      "sbtest-run"
+    ],
     "query": "3 tests failed last night, which are real bugs?",
     "files": [],
     "expected_behavior": [

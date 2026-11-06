@@ -87,7 +87,7 @@ native.screenshot(path) / native.dump(path) / native.close_stray_dialogs()
 ```
 
 Runnable examples of every interaction: the tests in `tests/features/` (`test_*_toolbar.py`
-for toolbar, bubbles and popups) and the action catalogue of the `sbtest-explore` skill.
+for toolbar, bubbles and popups) and `references/action-catalog.md`.
 
 ## Traps
 
