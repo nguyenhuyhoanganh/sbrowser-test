@@ -88,7 +88,6 @@ class BasePage:
     #: element that proves the page rendered
     ROOT: str = "body"
     SEARCH_INPUT = "deepcss=si-side-bar-toolbar-search-field"
-    TOAST = "deepcss=si-snack-bar"
     #: host element of the page toolbar (si-toolbar-button children)
     TOOLBAR = "body"
 
@@ -146,11 +145,6 @@ class BasePage:
         self.web.click(self.find_by_text("button.si-context-menu-item, [role=menuitem]", text))
 
     # -- snack bar (toast) -----------------------------------------------------------
-    def toast_element(self) -> WebElement | None:
-        for t in self.web.find_all(self.TOAST, visible=True):
-            return t
-        return None
-
     def wait_toast(self, contains: str = "", timeout: float | None = None) -> str:
         """Wait for the snack bar ("1 bookmark deleted"...) and return its text."""
         def _t():

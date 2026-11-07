@@ -9,10 +9,11 @@ browser:
   #           Needed for Samsung Browser: chromedriver hangs when it launches the exe itself.
   # "launch": chromedriver starts the exe.
   mode: attach
-  # Explicit chromedriver path (env: SB_DRIVER, flag: --driver). Best option: build
-  # the `chromedriver` target from the SAME fork source tree, then the version always matches.
+  # Empty = the latest chromedriver of the build's Chromium major, downloaded once into
+  # artifacts/drivers/<major>/. A path here (env: SB_DRIVER, flag: --driver) is only for a
+  # machine that cannot download; normally leave it empty.
   chromedriver: ""
-  # Chromium version the build is based on, e.g. "141.0.7390.37". Empty = auto-detect.
+  # Empty = read from the build (its User-Agent). Set only to override a wrong detection.
   chromium_version: ""
   headless: false
   # Page the first tab opens right after start, while chromedriver attaches (attach mode):

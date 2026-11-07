@@ -3,8 +3,6 @@
 browser:
   exe: 'C:\build\out\Release\SamsungInternet.exe'
   # public build (browser.samsung.com): 'C:\Program Files\Samsung\Internet\Application\samsunginternet.exe'
-  # chromedriver: 'C:\tools\chromedriver\148\chromedriver.exe'
-  # chromium_version: "148.0.7778.217"   # skip auto-detection
   # args: a list here REPLACES browser.args of default.yaml (lists are not merged): copy that
   # list and add to it
 

@@ -64,9 +64,6 @@ class BookmarksPage(BasePage):
         return [self.web.attr(e, "aria-label") for e in self.web.find_all(self.TREE_ITEM)]
 
     # -- navigation --------------------------------------------------------------
-    def expand_tree(self) -> None:
-        """The Samsung tree renders expanded; nothing to do."""
-
     def open_folder(self, name: str) -> None:
         self.web.click(f"deepcss=#container[role=treeitem][aria-label={q(name)}]")
         self.web.wait_until(lambda: self.selected_folder() == name, message=f"folder {name} selected")

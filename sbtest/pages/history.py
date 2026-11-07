@@ -33,7 +33,6 @@ class HistoryPage(BasePage):
     ROOT = "#history-app >>> #history"
     ITEMS = "#history-app >>> #history >>> history-item"
     TOOLBAR = "#history-app >>> #toolbar"
-    CLEAR_DATA_LINK = "#history-app >>> #content-side-bar >>> #clear-browsing-data"
 
     # -- reading -----------------------------------------------------------------
     def items(self) -> list[WebElement]:
@@ -53,9 +52,6 @@ class HistoryPage(BasePage):
 
     def titles(self) -> list[str]:
         return [r["title"] for r in self.rows()]
-
-    def urls(self) -> list[str]:
-        return [r["url"] for r in self.rows()]
 
     def item(self, title: str, timeout: float | None = None) -> WebElement:
         def _f():
@@ -103,10 +99,6 @@ class HistoryPage(BasePage):
         self.select(title)
         self.delete_selected()
         self.wait_item(title, present=False)
-
-    def open_clear_browsing_data(self) -> None:
-        """Side bar "Clear browsing data": opens Settings > Clear browsing data in a new tab."""
-        self.web.click(self.CLEAR_DATA_LINK)
 
     TIME_FILTERS = ("All time", "Last hour", "Today", "Yesterday", "Older")
 
