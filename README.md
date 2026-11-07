@@ -5,6 +5,8 @@ Selenium drives web content and internal pages, pywinauto drives the browser UI 
 dialogs. Each run produces a per-build report (HTML, Markdown) and the files to share it on
 Confluence or Jira.
 
+![sbtest: the two agent skills, sbtest-author (write tests) and sbtest-run (run and report)](docs/sbtest-flows.png)
+
 ## Requirements
 
 - Windows 10/11, an unlocked desktop (native tests use the real mouse and keyboard)
