@@ -57,6 +57,7 @@ web.double_click(loc) / web.right_click(loc) / web.hover(loc)
 web.type(loc, "text", clear=True, enter=False)
 web.clear(loc) / web.set_value(loc, "v")      # set_value: JS + input/change events
 web.press("ENTER") / web.press(Keys.CONTROL, "a") / web.press("TAB", loc="#name")
+web.type_keys("text", enter=False)  # into the element that has the focus (a field the page focused itself)
 web.select("#color", text="Blue")  # native <select> (also value=/index=)
 web.set_checked(loc, True)         # checkbox, cr-checkbox, cr-toggle, radio
 web.drag_and_drop(src, dst, method="actions"|"html5"|"native")

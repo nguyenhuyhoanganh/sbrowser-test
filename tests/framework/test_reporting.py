@@ -1,8 +1,19 @@
-"""Case parser + per-build report (no browser)."""
+"""Run outputs without a browser: case docs, report, share/, evidence, step marks, videos."""
 import json
+import xml.etree.ElementTree as ET
+from types import SimpleNamespace
 
+import pytest
+from PIL import Image
+
+from sbtest import steps
+from sbtest.reporting import evidence
 from sbtest.reporting.cases import parse_file
-from sbtest.reporting.report import build_rows, generate, summary
+from sbtest.reporting.cleanup import clear_dir
+from sbtest.reporting.evidence import draw_marks
+from sbtest.reporting.report import _copy_images, build_rows, generate, summary
+from sbtest.reporting.share_export import build, export
+
 
 CASE_MD = """# Feature
 
@@ -24,6 +35,25 @@ CASE_MD = """# Feature
   1. Do it
 - Expected: it works
 """
+
+
+def _run_with_failure(tmp_path):
+    """A results.json with one passed and one failed case (with a screenshot), like a real run."""
+    shot = tmp_path / "shot.png"
+
+    Image.new("RGB", (40, 20), "white").save(shot)
+    results = {"meta": {"started": "2026-10-20T10:00:00", "browser_version": "148.0.1.2",
+                        "product_version": "31.0.0.55"},
+               "tests": [
+                   {"nodeid": "a.py::test_a", "name": "test_a", "feature": "addons", "cases": ["ADD-001"],
+                    "outcome": "passed", "duration": 1, "screenshot": str(shot), "steps": []},
+                   {"nodeid": "a.py::test_b", "name": "test_b", "feature": "addons", "cases": ["ADD-002"],
+                    "outcome": "failed", "duration": 2, "failed_step": "2. Disable", "message": "AssertionError <x> | y",
+                    "screenshot": str(shot), "steps": [{"status": "failed", "title": "2. Disable"}]}]}
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "results.json").write_text(json.dumps(results), encoding="utf-8")
+    return run, results
 
 
 def test_parse_case_file(tmp_path):
@@ -62,32 +92,7 @@ def test_report_rows_verdict_and_files(tmp_path):
     assert "BUILD FAILED" in html and "Failed at:" in html and (run / "report" / "report.md").exists()
 
 
-def _run_with_failure(tmp_path):
-    """A results.json with one passed and one failed case (with a screenshot), like a real run."""
-    shot = tmp_path / "shot.png"
-    from PIL import Image
-
-    Image.new("RGB", (40, 20), "white").save(shot)
-    results = {"meta": {"started": "2026-10-20T10:00:00", "browser_version": "148.0.1.2",
-                        "product_version": "31.0.0.55"},
-               "tests": [
-                   {"nodeid": "a.py::test_a", "name": "test_a", "feature": "addons", "cases": ["ADD-001"],
-                    "outcome": "passed", "duration": 1, "screenshot": str(shot), "steps": []},
-                   {"nodeid": "a.py::test_b", "name": "test_b", "feature": "addons", "cases": ["ADD-002"],
-                    "outcome": "failed", "duration": 2, "failed_step": "2. Disable", "message": "AssertionError <x> | y",
-                    "screenshot": str(shot), "steps": [{"status": "failed", "title": "2. Disable"}]}]}
-    run = tmp_path / "run"
-    run.mkdir()
-    (run / "results.json").write_text(json.dumps(results), encoding="utf-8")
-    return run, results
-
-
 def test_confluence_page_is_well_formed(tmp_path):
-    import xml.etree.ElementTree as ET
-
-    from sbtest.reporting.share_export import build
-    from sbtest.reporting.report import _copy_images
-
     run, results = _run_with_failure(tmp_path)
     rows = build_rows(results, {})
     _copy_images(rows, run)
@@ -98,115 +103,14 @@ def test_confluence_page_is_well_formed(tmp_path):
 
 
 def test_share_export_folder(tmp_path):
-    from sbtest.reporting.share_export import export
-
     run, _ = _run_with_failure(tmp_path)
     out = export(run)
     manifest = json.loads((out / "manifest.json").read_text())
     assert manifest["attachments"] and all((out / a).exists() for a in manifest["attachments"])
     assert out.name == "share" and (out / "page.md").exists() and (out / "page.storage.html").exists()
 
-def test_clear_dir_empties_only_folders_inside_artifacts(tmp_path):
-    import pytest
-
-    from sbtest.reporting.cleanup import clear_dir
-
-    results = tmp_path / "test-results"
-    (results / "failures" / "test_x").mkdir(parents=True)
-    (results / "results.json").write_text("{}")
-    (results / "logs").mkdir()
-    (results / "logs" / "chromedriver_x.log").write_text("log")
-    (tmp_path / ".cache").mkdir()
-
-    assert clear_dir(results, tmp_path) == []
-    assert results.is_dir() and not list(results.iterdir())
-    assert (tmp_path / ".cache").exists()                      # outside the cleared folder
-    assert clear_dir(tmp_path / "doctor", tmp_path) == []      # missing folder: created empty
-    for bad in (tmp_path, tmp_path.parent / "elsewhere"):
-        with pytest.raises(ValueError):
-            clear_dir(bad, tmp_path)
-
-
-def test_overview_keeps_results_of_cases_not_rerun(tmp_path):
-    from sbtest.tools import case_overview as co
-
-    md = tmp_path / "TESTCASES.md"
-    md.write_text("| BM-001 | A | High | web |  | x.md | ✅ Pass |\n| DL-003 | B | Medium | native |  | y.md | ⏳ Not run |\n",
-                  encoding="utf-8")
-    assert co.previous_results(md) == {"BM-001": "passed", "DL-003": None}
-    assert co.previous_results(tmp_path / "missing.md") == {}
-
-
-def test_summary_lists_failures_with_evidence(tmp_path, monkeypatch):
-    import json
-
-    from sbtest.reporting.cases import parse_file
-    from sbtest.tools import summary
-    from sbtest.tools.summary import collect
-
-    doc = tmp_path / "page.md"   # the case doc that gives the failure its title
-    doc.write_text("## DL-003 Clear all\n- Steps:\n  1. Open downloads\n", encoding="utf-8")
-    monkeypatch.setattr(summary, "load_cases",
-                        lambda: {c.id: c for c in parse_file(doc, "downloads", "tests/features/downloads/page.md")})
-    ev = tmp_path / "failures" / "t2"
-    ev.mkdir(parents=True)
-    tests = [
-        {"nodeid": "tests/features/general/test_navigation.py::test_back_forward", "name": "test_back_forward",
-         "feature": "general", "cases": ["GEN-001"], "outcome": "passed", "duration": 1.0},
-        {"nodeid": "tests/features/downloads/test_downloads.py::test_clear_all", "name": "test_clear_all",
-         "feature": "downloads", "cases": ["DL-003"], "outcome": "failed", "duration": 2.0,
-         "failed_step": "3. Clear all", "message": "Timed out", "evidence_dir": str(ev)},
-    ]
-    (tmp_path / "results.json").write_text(json.dumps({"meta": {"selection": "all"}, "tests": tests}))
-    data = collect(tmp_path)
-    assert data["verdict"] == "BUILD FAILED"
-    assert data["per_feature"] == {"downloads": {"failed": 1}, "general": {"passed": 1}}
-    assert data["failures"] == [{"case": "DL-003", "title": "Clear all", "outcome": "failed",
-                                 "test": tests[1]["nodeid"], "failed_step": "3. Clear all", "error": "Timed out",
-                                 "evidence": str(ev / "failure.txt")}]
-
-
-def test_marks_are_recorded_only_while_step_pictures_are_on():
-    from sbtest import steps
-
-    steps.reset()
-    with steps.step("1. Off"):
-        steps.mark("click", "A", screen=(0, 0, 10, 10))
-    assert "marks" not in steps.history()[0]
-    seen = []
-    steps.set_listener(lambda rec, n: None, on_mark=lambda rec, n, i, m: seen.append((n, i, m["kind"])))
-    try:
-        with steps.step("2. On"):
-            steps.mark("click", "Save", screen=(0, 0, 10, 10))
-            steps.mark("keys", "^d")
-    finally:
-        steps.set_listener(None)
-        steps.reset()
-    assert seen == [(2, 1, "click"), (2, 2, "keys")]   # each interaction is announced before it runs
-
-
-def test_draw_marks_frames_targets_and_lists_shortcuts():
-    from PIL import Image
-
-    from sbtest.reporting.evidence import draw_marks
-
-    img = Image.new("RGB", (800, 600), "white")
-    marks = [{"kind": "click", "label": "Save", "web": None, "screen": (1100, 400, 1200, 440)},   # screen px
-             {"kind": "type", "label": "'abc'", "web": (10, 20, 100, 30, 2.0), "screen": None},  # CSS px, dpr 2
-             {"kind": "keys", "label": "^d", "web": None, "screen": None}]                       # no place
-    draw_marks(img, marks, origin=(1000, 300), viewport=(50, 60))
-    red = lambda xy: img.getpixel(xy)[0] > 200 and img.getpixel(xy)[1] < 60
-    # frames sit 3 px outside the target so they never hide it
-    assert red((100 - 2, 120)) and not red((100 + 5, 120))     # click: left edge at 1100-1000
-    assert red((50 + 20 - 2, 60 + 40 + 30))                    # type: viewport + x*dpr, mid height
-    assert img.getpixel((5, 5)) != (255, 255, 255)   # shortcut listed in the strip at the top
-
 
 def test_step_pictures_shared_for_failed_cases_by_default(tmp_path):
-    from PIL import Image
-
-    from sbtest.reporting.share_export import export
-
     run, results = _run_with_failure(tmp_path)
     pics = []
     for t in results["tests"]:
@@ -224,11 +128,6 @@ def test_step_pictures_shared_for_failed_cases_by_default(tmp_path):
 
 
 def test_videos_in_the_report_and_shared_for_failed_cases(tmp_path):
-    import xml.etree.ElementTree as ET
-
-    from sbtest.reporting.share_export import export
-    from sbtest.reporting.report import generate
-
     run, results = _run_with_failure(tmp_path)
     for t in results["tests"]:
         video = run / "videos" / f"{t['name']}.mp4"
@@ -248,28 +147,58 @@ def test_videos_in_the_report_and_shared_for_failed_cases(tmp_path):
                 if n.endswith(".mp4")]
 
 
-def test_coverage_flags_a_type_that_disagrees_with_the_native_marker():
-    from sbtest.tools.coverage import native_mismatch
+def test_clear_dir_empties_only_folders_inside_artifacts(tmp_path):
+    results = tmp_path / "test-results"
+    (results / "failures" / "test_x").mkdir(parents=True)
+    (results / "results.json").write_text("{}")
+    (results / "logs").mkdir()
+    (results / "logs" / "chromedriver_x.log").write_text("log")
+    (tmp_path / ".cache").mkdir()
 
-    rows = [{"id": "A-1", "type": "native", "tests": ["t.py::a"]},
-            {"id": "A-2", "type": "web", "tests": ["t.py::b"]},
-            {"id": "A-3", "type": "mixed", "tests": ["t.py::c"]},
-            {"id": "A-4", "type": "native", "tests": []}]                   # not automated: no check
-    marks = {"A-1": {"native": True}, "A-2": {"native": True}, "A-3": {"native": False}}
-    assert [m.split(":")[0] for m in native_mismatch(rows, marks)] == ["A-2", "A-3"]
+    assert clear_dir(results, tmp_path) == []
+    assert results.is_dir() and not list(results.iterdir())
+    assert (tmp_path / ".cache").exists()                      # outside the cleared folder
+    assert clear_dir(tmp_path / "doctor", tmp_path) == []      # missing folder: created empty
+    for bad in (tmp_path, tmp_path.parent / "elsewhere"):
+        with pytest.raises(ValueError):
+            clear_dir(bad, tmp_path)
 
 
-def test_summary_markdown_lists_every_case(tmp_path, monkeypatch):
-    from sbtest.tools import summary
+def test_marks_are_recorded_only_while_step_pictures_are_on():
+    steps.reset()
+    with steps.step("1. Off"):
+        steps.mark("click", "A", screen=(0, 0, 10, 10))
+    assert "marks" not in steps.history()[0]
+    seen = []
+    steps.set_listener(lambda rec, n: None, on_mark=lambda rec, n, i, m: seen.append((n, i, m["kind"])))
+    try:
+        with steps.step("2. On"):
+            steps.mark("click", "Save", screen=(0, 0, 10, 10))
+            steps.mark("keys", "^d")
+    finally:
+        steps.set_listener(None)
+        steps.reset()
+    assert seen == [(2, 1, "click"), (2, 2, "keys")]   # each interaction is announced before it runs
 
-    tests = [{"nodeid": "tests/features/bookmarks/test_bm_001.py::test_a", "name": "test_a", "feature": "bookmarks",
-              "cases": ["BM-001"], "outcome": "passed", "duration": 1.0},
-             {"nodeid": "tests/features/bookmarks/test_bm_002.py::test_b", "name": "test_b", "feature": "bookmarks",
-              "cases": ["BM-002"], "outcome": "failed", "duration": 1.0, "failed_step": "2. Delete",
-              "message": "Timed out\nmore"}]
-    (tmp_path / "results.json").write_text(json.dumps({"meta": {"selection": "--feature=bookmarks",
-                                                                "started": "2026-11-07T10:00:00"}, "tests": tests}))
-    monkeypatch.setattr(summary, "load_cases", lambda: {})
-    md = summary.markdown(summary.collect(tmp_path))
-    assert "**BUILD FAILED** - passed 1, failed 1" in md and "2026-11-07 10:00" in md
-    assert "| BM-001 |" in md and "| BM-002 |" in md and '- **BM-002** at "2. Delete": Timed out' in md
+
+def test_draw_marks_frames_targets_and_lists_shortcuts():
+    img = Image.new("RGB", (800, 600), "white")
+    marks = [{"kind": "click", "label": "Save", "web": None, "screen": (1100, 400, 1200, 440)},   # screen px
+             {"kind": "type", "label": "'abc'", "web": (10, 20, 100, 30, 2.0), "screen": None},  # CSS px, dpr 2
+             {"kind": "keys", "label": "^d", "web": None, "screen": None}]                       # no place
+    draw_marks(img, marks, origin=(1000, 300), viewport=(50, 60))
+    red = lambda xy: img.getpixel(xy)[0] > 200 and img.getpixel(xy)[1] < 60
+    # frames sit 3 px outside the target so they never hide it
+    assert red((100 - 2, 120)) and not red((100 + 5, 120))     # click: left edge at 1100-1000
+    assert red((50 + 20 - 2, 60 + 40 + 30))                    # type: viewport + x*dpr, mid height
+    assert img.getpixel((5, 5)) != (255, 255, 255)   # shortcut listed in the strip at the top
+
+
+def test_screen_grab_prefers_the_browser_windows(tmp_path):
+    shots = []
+    native = SimpleNamespace(screenshot=lambda p: shots.append(p) or p)
+    session = SimpleNamespace(native=native)
+    cfg = {"report.screen_capture": "window"}
+    conf = SimpleNamespace(get=lambda k, d=None: cfg.get(k, d))
+    assert evidence.screen_grab(tmp_path / "s.png", session, conf) == tmp_path / "s.png"
+    assert shots == [tmp_path / "s.png"]

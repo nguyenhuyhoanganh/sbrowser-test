@@ -4,12 +4,16 @@ STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
 
 How it differs from Chromium:
 - left side bar: search + category filter (All, Image, Video, Audio, Document, Others)
-- each row: name, size, source link and icon buttons "Copy link", "Show in folder"
+- a finished row: name, size, source link and icon buttons "Copy link", "Show in folder"
   (aria-label; title "Open Downloads folder") and X "Remove <name> from download history"
+- a row in progress: progress text ("704 KB/10.49 MB") and text buttons Pause / Resume
+  (#pauseOrResume) and Cancel (#cancelButton); Cancel removes the row (snack bar + Undo)
 - toolbar: "Clear download history"
 - a finished download also opens the toolbar Downloads bubble
 """
 from __future__ import annotations
+
+import time
 
 from selenium.webdriver.remote.webelement import WebElement
 
@@ -34,11 +38,16 @@ return {
 
 
 class DownloadsPage(BasePage):
+    # -- selectors -----------------------------------------------------------------
     page = "downloads"
     ROOT = "downloads-manager >>> #mainContainer"
+    TOOLBAR = "downloads-manager >>> #toolbar"
     ITEMS = "downloads-manager >>> downloads-item"
     CLEAR_ALL = "downloads-manager >>> #toolbar >>> #clearAll"
+    ROW_BUTTONS = "si-flat-button, si-icon-button, cr-icon-button, button, [role=button]"
+    CATEGORIES = ("All", "Image", "Video", "Audio", "Document", "Others")
 
+    # -- read ----------------------------------------------------------------------
     def items(self) -> list[WebElement]:
         return self.web.find_all(self.ITEMS)
 
@@ -50,54 +59,112 @@ class DownloadsPage(BasePage):
         return [self.info(i)["name"] for i in self.items()]
 
     def item(self, name: str, timeout: float | None = None) -> WebElement:
+        """The row of file ``name``. The list reuses its row elements when it re-renders (a
+        download added, removed, restored): a row counts once it shows ``name`` on two reads
+        in a row, so an action never lands on a row that just changed."""
+        seen = {}
+
         def _f():
             for i in self.items():
                 if self.info(i)["name"] == name:
-                    return i
+                    if seen.get("row") == i.id:
+                        return i
+                    seen["row"] = i.id
+                    time.sleep(0.2)
+                    return None
+            seen.clear()
             return None
         return self.web.wait_until(_f, timeout, f"download item {name!r}")
 
+    def row_info(self, name: str) -> dict:
+        """``info`` of the row of ``name`` (read again until the row still shows ``name``)."""
+        def _f():
+            i = self.info(self.item(name, timeout=2))
+            return i if i["name"] == name else None
+        return self.web.wait_until(_f, message=f"download row {name!r}")
+
+    def status(self, name: str) -> str:
+        """Tag, progress / description and size of a row in one string ("Paused 1 MB/10 MB ...")."""
+        i = self.row_info(name)
+        return " ".join(x for x in (i["tag"], i["description"], i["size"]) if x)
+
+    def row_buttons(self, name: str) -> list[str]:
+        """Labels of the buttons a row shows now (Pause / Cancel while in progress, Copy link /
+        Show in folder / remove when finished)."""
+        buttons = self.web.find_all(f"deepcss={self.ROW_BUTTONS}", within=self.item(name))
+        labels = (self.web.text(b) or self.web.attr(b, "aria-label") or self.web.attr(b, "title") for b in buttons)
+        return list(dict.fromkeys(x for x in labels if x))
+
+    # -- wait ----------------------------------------------------------------------
     def wait_item(self, name: str, present: bool = True, timeout: float | None = None) -> None:
         self.web.wait_until(lambda: (name in self.names()) == present, timeout,
                             f"download {name!r} {'present' if present else 'absent'}")
 
     def wait_complete(self, name: str, timeout: float | None = None) -> dict:
+        """Wait until the row is finished; returns its ``info``."""
         def _done():
-            i = self.info(self.item(name, timeout=1))
+            i = self.row_info(name)
             return i if not i["in_progress"] else None
         return self.web.wait_until(_done, self.web.long_timeout if timeout is None else timeout,
                                    f"download {name!r} complete")
 
-    def status(self, name: str) -> str:
-        i = self.info(self.item(name))
-        return " ".join(x for x in (i["tag"], i["description"], i["size"]) if x)
+    def wait_status(self, name: str, contains: str, timeout: float | None = None) -> str:
+        """Wait until ``status(name)`` contains ``contains`` (e.g. "Paused"); returns it."""
+        def _s():
+            s = self.status(name)
+            return s if contains.lower() in s.lower() else None
+        return self.web.wait_until(_s, timeout, f"download {name!r} status containing {contains!r}")
 
+    # -- row buttons ----------------------------------------------------------------
     def action(self, name: str, action: str) -> None:
-        """Row icon button by aria-label or title: ``Show in folder`` | ``Copy link`` | ``Pause``..."""
+        """Click a row button by its text, aria-label or title (the named methods below use it)."""
         item = self.item(name)
-        # in-progress rows: text buttons Pause/Resume (#pauseOrResume) and Cancel (#cancelButton)
-        for b in self.web.find_all("deepcss=si-flat-button", within=item):
+        for b in self.web.find_all("deepcss=si-flat-button", within=item):   # Pause / Resume / Cancel
             if self.web.text(b) == action:
                 self.web.click(b)
                 return
-        for attr in ("aria-label", "title"):
+        for attr in ("aria-label", "title"):                                  # icon buttons
             hits = self.web.find_all(f'deepcss=[{attr}="{action}"]', within=item)
             if hits:
                 self.web.click(hits[0])
                 return
-        raise LookupError(f"no button {action!r} on download row {name!r}")
+        raise LookupError(f"no button {action!r} on download row {name!r}: {self.row_buttons(name)}")
+
+    def pause(self, name: str) -> None:
+        """Pause a download in progress."""
+        self.action(name, "Pause")
+        self.wait_status(name, "Paused")
+
+    def resume(self, name: str) -> None:
+        """Resume a paused download."""
+        self.action(name, "Resume")
+        self.web.wait_until(lambda: "paused" not in self.status(name).lower(), message=f"{name!r} resumed")
+
+    def cancel(self, name: str) -> str:
+        """Cancel a download in progress: the row goes away; returns the snack bar text."""
+        self.action(name, "Cancel")
+        self.wait_item(name, present=False)
+        return self.wait_toast()
+
+    def copy_link(self, name: str) -> None:
+        """Copy link icon: the download's address goes to the clipboard."""
+        self.action(name, "Copy link")
+
+    def show_in_folder(self, name: str) -> None:
+        """Show in folder icon: File Explorer opens the folder (check with ``native.wait_explorer``)."""
+        self.action(name, "Show in folder")
 
     def remove(self, name: str) -> None:
+        """X of the row: removed from the list (the file stays on disk), snack bar + Undo."""
         self.web.click(self.web.find("deep=#remove", within=self.item(name)))
         self.wait_item(name, present=False)
 
+    # -- toolbar and side bar -------------------------------------------------------
     def clear_all(self) -> None:
+        """Toolbar "Clear download history" (cases call it "Clear all"): the list is empty."""
         self.toolbar("Clear download history")
         self.confirm_dialog_if_open("Clear", "Delete", "OK")
         self.web.wait_until(lambda: not self.items(), message="downloads list empty")
-
-    TOOLBAR = "downloads-manager >>> #toolbar"
-    CATEGORIES = ("All", "Image", "Video", "Audio", "Document", "Others")
 
     def filter_category(self, label: str) -> None:
         """Side bar category: one of ``CATEGORIES``."""

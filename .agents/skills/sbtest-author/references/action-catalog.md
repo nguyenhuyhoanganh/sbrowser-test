@@ -53,15 +53,17 @@ Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, 
 
 | Request | Do |
 |---|---|
-| list / check an entry | `bm.titles()`, `bm.wait_item("X")`, `bm.wait_item("X", present=False)`, `bm.item_url("X")` |
+| list / check an entry | `bm.titles()`, `bm.wait_item("X")`, `bm.wait_item("X", present=False)`, `bm.item_url("X")`, `bm.is_folder("X")` |
 | open a folder | `bm.open_folder("Work")`, root: `bm.open_folder(bm.BAR_FOLDER)`; tree: `bm.folders()` |
 | add a bookmark | `bm.add_bookmark(name, url)` (right ⋮ > Add bookmark, into the open folder) |
 | add a folder | `bm.add_folder(name)` (Create folder + rename in the tree) |
-| edit name / address | `bm.edit("X", name=..., url=...)` (tick + toolbar Edit) |
+| edit name / address | `bm.edit("X", name=..., url=...)`, `bm.rename("X", "Y")` (tick + toolbar Edit) |
 | a row's item menu (right-click; cases say "from its item menu") | `bm.item_menu("X", "Edit" / "Delete" / "Open all (2) in new tab")`; after Delete: `bm.wait_toast("deleted")`, `bm.wait_item("X", present=False)` |
 | delete with the toolbar Delete button + snack bar + undo | `toast = bm.delete("X")` ("1 bookmark deleted"), `bm.undo()` |
-| select several / all | `bm.select("A", "B")`, `bm.toolbar("Select all")`, `bm.delete_selected()` ("Delete all") |
-| sort / options menu | `bm.options("Sort by name")` (right ⋮), `bm.organize("Import bookmarks")` (left ⋮) |
+| select several / all | `bm.select("A", "B")`, `bm.is_selected("A")`, `bm.select_all()`, `bm.deselect_all()`, `bm.delete_selected()` ("Delete all") |
+| sort / options menu | `bm.sort_by_name()` (folders first, then A-Z), `bm.options("...")` (right ⋮), `bm.organize("...")` (left ⋮) |
+| open all bookmarks of a folder | `bm.open_all()` (Select all + right ⋮ "Open all (n) in new tabs"), `bm.open_all("A", "B", where="new window")` / `where="Secret mode"` - n counts the selected rows |
+| import bookmarks | `bm.open_import()` (left ⋮ > Import bookmarks: Settings import page in a new tab, switched to) |
 | open a bookmark | `bm.open_item("X")` (new tab on Samsung, switched to) |
 | search | `bm.search("ta")`, `bm.wait_titles([...])` |
 | export to a file | `bm.export(native, tmp_path / "b.html")` (Save As) |
@@ -82,11 +84,13 @@ Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, 
 |---|---|
 | entries, order, details | `h.titles()`, `h.rows()` -> `{title, url, domain, time, day}`, `h.days()` |
 | open an entry | `h.open_item("Alpha")` (same tab) |
-| select / delete / cancel | `h.select("A", "B")`, `h.delete_selected()`, `h.remove("A")`, `h.cancel_selection()` |
-| delete a day | `web.click(web.find("deep=#all-select", within=h.items()[0]))` + `h.delete_selected()` |
-| clear history | `h.clear_history()` |
+| select / delete / cancel | `h.select("A", "B")`, `h.is_selected("A")`, `h.delete_selected()`, `h.remove("A")`, `h.cancel_selection()` |
+| a row's item menu (right click) | `h.item_menu("A", "Copy link" / "Open all (1) in new tab")`, `h.delete_from_menu("A")`, `h.more_from_site("A")` (the list shows that site only) |
+| delete a day | `h.delete_day(0)` (day header check box + Delete; 0 = newest day), or `h.select_day(0)` + `h.delete_selected()` |
+| clear history | `h.clear_history()` (no confirmation on Samsung 31) |
+| clear browsing data | `h.open_clear_browsing_data()` (Settings in a new tab, switched to) |
 | time filter (check boxes, add up) | `h.filter_time("Last hour")`, `h.filter_time("Yesterday", "Today")`, `h.time_filters()` |
-| search | `h.search("Gam")`; empty: `web.wait_until(lambda: not h.titles())` |
+| search | `h.search("Gam")`, `h.wait_titles(["Gamma"])`; empty: `web.wait_until(h.is_empty)` |
 | toolbar button state | `h.toolbar_enabled("Delete")` |
 
 ## Downloads (`pages.downloads`, files in `downloads_dir`)
@@ -95,12 +99,13 @@ Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, 
 |---|---|
 | row details | `d.wait_complete("x")` -> `{name, url, size, description, tag, in_progress}`, `d.names()` |
 | file on disk | `web.wait_file(downloads_dir, "x")` |
-| pause / resume / cancel | `d.action("slow.bin", "Pause" / "Resume" / "Cancel")`, `d.status("slow.bin")` ("Paused ...") |
+| pause / resume / cancel | `d.pause("slow.bin")`, `d.resume("slow.bin")`, `toast = d.cancel("slow.bin")` (row gone, "... removed from Downloads."); `d.status("slow.bin")`, `d.wait_status("slow.bin", "Paused")` |
+| which buttons a row shows | `d.row_buttons("x")` -> `["Pause", "Cancel"]` in progress, `["Copy link", "Show in folder", "Remove x from download history"]` finished |
 | remove + undo | `d.remove("x")`, `d.toast_action("Undo")` |
 | clear the list ("Clear all" = toolbar "Clear download history") | `native.close_download_bubble()` if a download just finished (feature-notes, Downloads), then `d.clear_all()` |
 | category / search | `d.filter_category("Image")`, `d.search("data")` |
-| copy link | `d.action("x", "Copy link")` + `pywinauto.clipboard.GetData()` |
-| show in folder | `d.action("x", "Show in folder")`, `native.wait_explorer(downloads_dir.name)`, `native.explorer_has_selected(win, "x")` |
+| copy link | `d.copy_link("x")` + `pywinauto.clipboard.GetData()` |
+| show in folder | `d.show_in_folder("x")`, `native.wait_explorer(downloads_dir.name)`, `native.explorer_has_selected(win, "x")` |
 | toolbar download bubble | `native.element("download_bubble_item", title_re=r"^x ")` -> name "x 2,048 B • Done" |
 | ask where to save | prefs `download.prompt_for_download` + `native.file_dialog("save").save_as(path)` |
 
@@ -110,10 +115,11 @@ Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, 
 |---|---|
 | card / state | `e = pages.extensions.open()`, `e.names()`, `e.item("X")`, `e.is_enabled("X")`, `e.info()` (id, version, state) |
 | turn on/off | `e.set_enabled("X", False)` |
+| reload / update (developer mode) | `e.reload("X")` (card Reload icon), `e.update()` (toolbar Update) |
 | add-on works on a page | sample add-on marks pages: `web.js("return document.documentElement.getAttribute('data-sb-addon')") == "active"` |
 | developer mode / tools | `e.set_dev_mode(True)`, `e.dev_toolbar()` -> Load Unpacked, Pack add-on, Update |
 | details / shortcuts | `e.open_details("X")`, `e.open_shortcuts()`, `e.shortcuts()` |
-| remove (+ cancel) | `e.click_remove("X")`, `dlg = native.wait_dialog("remove_extension")` ("Delete X?"), `dlg.click("Remove" / "Cancel")` |
+| remove (+ cancel) | `e.remove("X", native)` / `e.remove("X", native, confirm=False)` (card Remove -> "Delete X?" -> Remove / Cancel, waits until gone / still there); to check the prompt itself: `e.click_remove("X")`, `dlg = native.wait_dialog("remove_extension")`, `dlg.texts()`, `dlg.click("Remove" / "Cancel")` |
 | install: unpacked / store | `e.load_unpacked(native, folder)`, `pages.webstore.install(id, native)` (free add-ons only) |
 | pack | `e.open_pack_dialog()`, `e.pack_inputs()`, `e.pack_button_enabled()`, `e.pack(folder)` |
 | store link | `e.get_addons()` (new tab, Chrome Web Store) |

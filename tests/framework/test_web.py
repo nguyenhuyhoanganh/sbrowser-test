@@ -1,5 +1,9 @@
+"""Web layer and page objects: locator syntax, the pages factory."""
+from types import SimpleNamespace
+
 from selenium.webdriver.common.by import By
 
+from sbtest.pages import ExtensionsPage, Pages
 from sbtest.web.locators import Locator, parse
 
 
@@ -27,3 +31,8 @@ def test_shadow_path():
 def test_tuple():
     assert parse((By.ID, "x")) == Locator("id", "x")
     assert parse((By.CSS_SELECTOR, "a")) == Locator("css", "a")
+
+
+def test_pages_factory():
+    web = SimpleNamespace(cfg=SimpleNamespace(get=lambda k, d=None: d))
+    assert isinstance(Pages(web).extensions, ExtensionsPage)

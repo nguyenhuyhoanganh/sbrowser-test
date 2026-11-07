@@ -162,6 +162,15 @@ class ActionsMixin:
             chain.key_up(m)
         chain.perform()
 
+    def type_keys(self, text: str, enter: bool = False) -> None:
+        """Type ``text`` into the element that has the focus (a field the page focused by
+        itself, e.g. a new folder's name). ``text`` is typed as is - never read as a key name."""
+        self._mark("type", self.focused(), repr(text))
+        chain = ActionChains(self.driver).send_keys(text)
+        if enter:
+            chain.send_keys(Keys.ENTER)
+        chain.perform()
+
     def select(self, loc, text: str | None = None, value: str | None = None, index: int | None = None) -> None:
         """Native ``<select>``. For Chromium ``cr-select``/``md-select`` (wrapping a select) target the inner select."""
         el = self.find(loc)

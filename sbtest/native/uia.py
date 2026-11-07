@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Iterable
 
 from sbtest.utils import poll
@@ -190,3 +191,8 @@ def dump(root, max_depth: int = 25) -> str:
     walk(root, 0)
     return "\n".join(lines)
 
+
+def dump_to(path: Path, roots: Iterable) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n\n".join(dump(r) for r in roots), encoding="utf-8")
+    return path

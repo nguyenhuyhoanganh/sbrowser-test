@@ -50,7 +50,8 @@ differently from these notes: report it and let the user verify it, then record 
   "Deselect all" when everything is selected).
 - Right click a row: Edit, Delete, Open all (n) in new tab / new window / Secret mode.
   Right ⋮: Add bookmark (`add_bookmark`, same dialog as Edit), Sort by name (folders first),
-  Open all. Left ⋮: Create folder in selected folder, Sort by name, Import bookmarks (opens
+  Open all (n) in new tabs / new window / Secret mode - n counts the SELECTED rows ("Open
+  all (0)" with nothing selected; `open_all()` selects first). Left ⋮: Create folder in selected folder, Sort by name, Import bookmarks (opens
   Settings in a new tab), Export bookmarks (Save As, HTML: `export(native, path)`).
 - "Create folder" adds "Folder N" in the selected folder, opens it and edits its name in the
   tree (`add_folder(name)` types over it). Delete is immediate: snack bar "1 bookmark deleted"
@@ -82,8 +83,12 @@ differently from these notes: report it and let the user verify it, then record 
 
 - Seed by visiting `site.page(title)`; wait for the title before the next visit.
 - Entries are newest first, grouped by day; `rows()` reads them in one call.
-- Each row has a round check box (`select()`), the day header has its own (`#all-select`).
-  Toolbar: Share, Delete (no confirmation), Clear history.
+- Each row has a round check box (`select()`), the day header has its own (`select_day()`).
+  Every row carries a day header; only the first row of a day (attribute `is-card-start`)
+  shows it - `rows()` / `days()` read only those.
+  Toolbar: Share, Delete, Clear history - both delete at once, no confirmation.
+- No ⋮ per row: right click -> Open all (1) in new tab / new window / Secret mode, More
+  results from same site (the list then shows `?q=<host>`), Copy link, Delete, Inspect.
 - Side bar time filters are CHECK BOXES (several ranges add up): `filter_time("Last hour")`
   leaves exactly the given ones ticked. "Clear browsing data" -> settings `clearBrowserData`
   in a new tab.
@@ -99,8 +104,11 @@ differently from these notes: report it and let the user verify it, then record 
   ("ta.bin", not "data" - the downloads folder can be under AppData or D:\data).
 - Finished row: name, size ("2.05 KB"), source link, icons "Copy link", "Show in folder",
   X (remove, snack bar + Undo). In-progress row: progress bar + text buttons Pause/Resume,
-  Cancel (`action(name, "Pause")`). Cancel REMOVES the row ("x removed from Downloads." + Undo);
+  Cancel (`pause(name)`, `cancel(name)`). Cancel REMOVES the row ("x removed from Downloads." + Undo);
   the toolbar Downloads bubble shows "Canceled". Toolbar: "Clear download history".
+- The list reuses its row elements when it re-renders (a download added, removed, restored
+  by Undo): an element found for "a.txt" can show "b.bin" a moment later. `item()` confirms
+  the row before an action uses it; read rows through the page object, not a kept element.
 - A finished download opens the toolbar Downloads bubble over the page. On some builds it
   covers the downloads page's toolbar button "Clear download history" (cases call it "Clear
   all"): any test that downloads and then uses that toolbar first calls

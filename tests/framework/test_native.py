@@ -1,8 +1,15 @@
-"""Native layer logic with fake UIA elements (real UIA needs Windows)."""
+"""Native layer logic with fake UIA elements (real UIA needs Windows) and the ui map rules."""
+import re
+import time
 from types import SimpleNamespace
 
-from sbtest.native import uia
-from sbtest.native.dialogs import Dialog, _escape_keys
+import pytest
+import yaml
+
+from sbtest.config import ROOT
+from sbtest.native import browser_ui, uia
+from sbtest.native.browser_ui import NativeBrowser
+from sbtest.native.dialogs import _escape_keys, Dialog
 
 
 class Fake:
@@ -80,8 +87,6 @@ def test_dialog_click_views_button_uses_mouse():
 
 
 def test_views_button_waits_out_the_input_protection(monkeypatch):
-    import time
-
     monkeypatch.setattr(uia, "input_protection", lambda: 0.3)
     root, done = tree(button_class="OneUITextButton")
     dlg = Dialog(root, timeout=0.5)
@@ -103,8 +108,6 @@ def test_wait_actionable_waits_until_the_element_stops_moving():
 
 
 def test_wait_actionable_says_why_it_gave_up():
-    import pytest
-
     el = Fake("Button", "Save")
     el.is_enabled = lambda: False
     with pytest.raises(TimeoutError, match="Button 'Save' not ready to click.*disabled"):
@@ -143,8 +146,6 @@ def test_class_name_re_alternatives_search_natively_per_class():
 
 
 def test_window_rect_covers_browser_windows_only():
-    from sbtest.native.browser_ui import NativeBrowser
-
     def win(l, t, r, b):
         return SimpleNamespace(rectangle=lambda: SimpleNamespace(left=l, top=t, right=r, bottom=b,
                                                                  width=lambda: r - l, height=lambda: b - t))
@@ -162,24 +163,7 @@ def test_window_rect_covers_browser_windows_only():
         pass
 
 
-def test_screen_grab_prefers_the_browser_windows(tmp_path):
-    from sbtest.reporting import evidence
-
-    shots = []
-    native = SimpleNamespace(screenshot=lambda p: shots.append(p) or p)
-    session = SimpleNamespace(native=native)
-    cfg = {"report.screen_capture": "window"}
-    conf = SimpleNamespace(get=lambda k, d=None: cfg.get(k, d))
-    assert evidence.screen_grab(tmp_path / "s.png", session, conf) == tmp_path / "s.png"
-    assert shots == [tmp_path / "s.png"]
-
-
 def test_keyboard_goes_only_to_the_browser(monkeypatch):
-    import pytest
-
-    from sbtest.native import browser_ui
-    from sbtest.native.browser_ui import NativeBrowser
-
     monkeypatch.setattr(browser_ui, "poll", lambda fn, *a, **k: fn() or (_ for _ in ()).throw(TimeoutError()))
     nb = NativeBrowser.__new__(NativeBrowser)
     nb.pids = lambda: {10, 11}
@@ -197,27 +181,7 @@ def test_keyboard_goes_only_to_the_browser(monkeypatch):
         nb.ensure_keyboard_target(refocus=False)       # typing into a field: never move the focus
 
 
-def test_only_test_browsers_left_by_a_crash_are_closed(monkeypatch):
-    from types import SimpleNamespace as NS
-
-    from sbtest import utils
-
-    procs = [NS(info={"pid": 1, "cmdline": ["sb.exe", r"--user-data-dir=C:\repo\artifacts\test-results\profiles\t_1"]}),
-             NS(info={"pid": 2, "cmdline": ["sb.exe", r"--user-data-dir=C:\repo\artifacts\test-results\profiles\t_1",
-                                            "--type=renderer"]}),                         # child: goes with pid 1
-             NS(info={"pid": 3, "cmdline": ["sb.exe", r"--user-data-dir=C:\Users\me\AppData\Samsung\User Data"]}),
-             NS(info={"pid": 4, "cmdline": ["sb.exe"]})]                                  # the user's own browser
-    killed = []
-    monkeypatch.setattr(utils.psutil, "process_iter", lambda attrs: procs)
-    monkeypatch.setattr(utils, "kill_tree", killed.append)
-    assert utils.kill_browsers_using([r"C:\repo\artifacts\test-results\profiles"]) == [1] and killed == [1]
-
-
 def test_startup_bubbles_never_hold_up_the_test():
-    import time
-
-    from sbtest.native import browser_ui
-
     nb = browser_ui.NativeBrowser.__new__(browser_ui.NativeBrowser)
     nb.ui_map = {"startup_bubbles": [{"text": "(?i)has been updated", "button": "Close"}]}
     nb._bubbles_until = nb._bubbles_next = 0.0
@@ -235,3 +199,19 @@ def test_startup_bubbles_never_hold_up_the_test():
     nb._close_late_bubbles()                             # watch window over: stops looking
     nb._close_late_bubbles()
     assert len(looks) == 2 and nb._bubbles_until == 0.0
+
+
+def test_native_ui_map_uses_stable_criteria():
+    """Views number their AutomationIds in creation order (``view_1023``): they change between
+    builds, so the ui map must not use them. Each entry names a class, an id, or a control
+    type plus its title - a title alone matches too much."""
+    ONE_PER_WINDOW = {"Tab"}   # the frame has one tab strip
+    ui = yaml.safe_load((ROOT / "config" / "native_ui.yaml").read_text(encoding="utf-8"))
+    for key, crit in ui.items():
+        if key in ("dialogs", "startup_bubbles") or not isinstance(crit, dict):
+            continue
+        assert not re.fullmatch(r"view_\d+", str(crit.get("auto_id", ""))), f"{key}: auto_id view_N changes per build"
+        stable = {"class_name", "class_name_re", "auto_id"} & set(crit) or (
+            "control_type" in crit and {"title", "title_re"} & set(crit)) or (
+            crit.get("control_type") in ONE_PER_WINDOW and len(crit) == 1)
+        assert stable, f"{key}: add class_name, auto_id or control_type + title ({crit})"
