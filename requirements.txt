@@ -1,4 +1,4 @@
-playwright>=1.49        # attaches to the browser over DevTools; no `playwright install` needed
+playwright>=1.65        # attaches to the browser over DevTools (no_defaults); no `playwright install` needed
 pytest>=8.0
 pytest-rerunfailures>=14.0
 pyyaml>=6.0

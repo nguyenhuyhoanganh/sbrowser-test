@@ -70,6 +70,14 @@ class NativeBrowser:
         self.ui_map: dict = yaml.safe_load(cfg.path("native.ui_map").read_text(encoding="utf-8")) or {}
         self._bubbles_until = 0.0     # watch_startup_bubbles: look for them until then
         self._bubbles_next = 0.0      # next look (at most every 0.5 s)
+        #: called before anything needs the browser window: the browser starts without one
+        #: (the session opens it on about:blank when the test has not opened a page yet)
+        self.ensure_window = None
+
+    def _need_window(self) -> None:
+        ensure = getattr(self, "ensure_window", None)
+        if ensure is not None:
+            ensure()
 
     # -- windows -----------------------------------------------------------------
     def pids(self) -> set[int]:
@@ -110,6 +118,8 @@ class NativeBrowser:
         return out
 
     def main_window(self):
+        self._need_window()
+
         def _main():
             wins = [w for w in self.windows() if w.element_info.class_name == "Chrome_WidgetWin_1"
                     and w.element_info.control_type in ("Window", "Pane")]
@@ -150,6 +160,7 @@ class NativeBrowser:
         def _ours():
             return self.foreground_owner()[0] in self.pids()
 
+        self._need_window()
         if _ours():
             return
         pid, name = self.foreground_owner()
@@ -575,30 +586,54 @@ class NativeBrowser:
         deadline = time.monotonic() + timeout
         while rules and len(closed) < len(rules):
             for rule in rules:
-                if rule["text"] in closed:
-                    continue
-                for w in self.windows():
-                    # the label is a Text (views::Label): a native UIA search, not a full walk
-                    label = uia.find_in([w], 0, control_type="Text", title_re=rule["text"])
-                    if label is None:
-                        continue
-                    # the button lives in the same bubble: walk up until a container has it
-                    node = label
-                    for _ in range(6):
-                        node = node.parent()
-                        if node is None:
-                            break
-                        btn = uia.find_in([node], 0, control_type="Button", title=rule["button"])
-                        if btn is not None:
-                            btn.invoke()
-                            closed.append(rule["text"])
-                            log.info("dismissed startup bubble /%s/", rule["text"])
-                            break
-                    break
+                if rule["text"] not in closed and self._close_bubble(rule):
+                    closed.append(rule["text"])
             if time.monotonic() >= deadline:
                 break
             time.sleep(0.3)
         return closed
+
+    def _bubble_label(self, text_re: str):
+        """The label of a shown bubble whose text matches ``text_re``, or None."""
+        for w in self.windows():
+            # the label is a Text (views::Label): a native UIA search, not a full walk
+            label = uia.find_in([w], 0, control_type="Text", title_re=text_re)
+            if label is not None:
+                return label
+        return None
+
+    def _close_bubble(self, rule: dict) -> bool:
+        """Press the rule's button on its bubble; True once the bubble is really gone.
+
+        A bubble ignores a press that comes right after it showed (Chromium drops clicks
+        within the double-click time, against accidental clicks), so the press is checked
+        and repeated once that time is over."""
+        label = self._bubble_label(rule["text"])
+        if label is None:
+            return False
+        btn, node = None, label
+        for _ in range(6):   # the button lives in the same bubble: walk up until a container has it
+            node = node.parent()
+            if node is None:
+                break
+            btn = uia.find_in([node], 0, control_type="Button", title=rule["button"])
+            if btn is not None:
+                break
+        if btn is None:
+            return False
+        for wait in (0.7, 1.5):
+            try:
+                btn.invoke()
+            except Exception as e:  # noqa: BLE001 - closed meanwhile
+                log.debug("startup bubble button: %s", e)
+            try:
+                poll(lambda: self._bubble_label(rule["text"]) is None, wait, 0.1, "bubble closed")
+                log.info("dismissed startup bubble /%s/", rule["text"])
+                return True
+            except TimeoutError:
+                log.debug("startup bubble /%s/ ignored %r, pressing again", rule["text"], rule["button"])
+        log.warning("startup bubble /%s/ did not close on %r", rule["text"], rule["button"])
+        return False
 
     def watch_startup_bubbles(self, seconds: float) -> None:
         """For the next ``seconds``, every native action first closes a startup bubble that

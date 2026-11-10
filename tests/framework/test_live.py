@@ -51,9 +51,10 @@ def live(tmp_path_factory):
 def web(live):
     session, _ = live
     web = session.web
-    for tab in web.tabs[1:]:
-        web.run(tab.close())
-    web.switch_tab(0)
+    if web.tabs:   # none before the first page: the browser starts without a window
+        for tab in web.tabs[1:]:
+            web.run(tab.close())
+        web.switch_tab(0)
     del web.dialogs[:]
     return web
 
@@ -66,6 +67,15 @@ def site(live):
 def test_attach_reports_the_chromium_version(live):
     session, _ = live
     assert session.alive and session.info["chromium"].split(".")[0].isdigit()
+
+
+def test_first_window_opens_on_the_first_page(live, web, site):
+    session, _ = live
+    # no window (no about:blank) until the test opens its first page
+    assert not session.has_window and web.tabs == [] and web.url == ""
+    web.open(site.url("/pages/page1.html"))
+    assert session.has_window and web.title == "Static page 1" and len(web.tabs) == 1
+    assert web.js("return history.length") == 1      # the window was born on the page: Back is off
 
 
 def test_locators_pierce_shadow_roots(web, site):
@@ -185,6 +195,18 @@ def test_tabs_frames_and_waits(web, site):
     with pytest.raises(TimeoutError, match="element visible #never"):
         web.find("#never", timeout=0.3)
     assert web.last_target == ("#never", None)
+
+
+def test_back_and_forward_with_the_page_cache(web, site):
+    # pages come back from the back/forward cache (no "load" event): the call must not hang
+    web.open(site.url("/pages/page1.html"))
+    web.click("#next")
+    web.wait_title("Static page 2")
+    for _ in range(2):
+        web.back()
+        assert web.title == "Static page 1"
+        web.forward()
+        assert web.title == "Static page 2"
 
 
 def test_downloads_stay_with_the_browser(live, web, site):

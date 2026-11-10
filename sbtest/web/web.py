@@ -36,11 +36,13 @@ MAX_CONSOLE_LINES = 500
 
 
 class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
-    def __init__(self, context, page, cfg, native_factory=None) -> None:
+    def __init__(self, context, page, cfg, native_factory=None, new_window=None) -> None:
         self.rt = runtime()
         self.context = context
-        #: Playwright page of the current tab (``switch_tab`` / ``wait_new_tab`` change it)
-        self.page = page
+        self._page = page
+        #: ``new_window(url)`` -> Playwright page of a new browser window opened on ``url``.
+        #: The browser starts without a window: the first ``open`` makes it on its page.
+        self._new_window = new_window
         self.cfg = cfg
         self._native_factory = native_factory
         self._frames: list = []
@@ -54,7 +56,7 @@ class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
         self.command_timeout = float(cfg.get("timeouts.command", 30))
         #: (locator text, element or None) of the last element looked up - used by failure reports
         self.last_target: tuple[str, object] | None = None
-        #: URL the browser start opened in the first tab (browser.start_page); the first open()
+        #: URL the browser window was opened on (browser.start_page); the first open()
         #: of exactly that URL does not load it again
         self.preloaded_url = ""
         #: every JavaScript dialog seen: {type, message, answer, expected}
@@ -68,6 +70,24 @@ class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
     def run(self, coro, timeout: float | None = None, what: str = ""):
         """Run a Playwright coroutine and return its result (TimeoutError after ``timeout`` s)."""
         return self.rt.run(coro, self.command_timeout if timeout is None else timeout, what)
+
+    @property
+    def page(self):
+        """Playwright page of the current tab (``switch_tab`` / ``wait_new_tab`` change it).
+        Before the first ``open`` the browser has no window: using the page opens one on
+        about:blank."""
+        if self._page is None and self._new_window is not None:
+            self._page = self._new_window("about:blank")
+        return self._page
+
+    @page.setter
+    def page(self, value) -> None:
+        self._page = value
+
+    @property
+    def has_window(self) -> bool:
+        """False while the browser has no window yet (nothing opened since the start)."""
+        return self._page is not None
 
     @property
     def root(self):

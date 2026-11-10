@@ -116,6 +116,10 @@ with web.frame("#iframe"):       # inside an iframe, back to the page afterwards
 A tab the browser opens in the background is in `web.tabs` too: `switch_tab` makes it the one
 `web.*` talks to, it does not bring it to the front on screen.
 
+The browser starts without a window: the test's first `web.open` (or `pages.x.open()`, or
+`browser(start_page=...)`) opens the window directly on its page, without about:blank and
+with Back off. Before that `web.tabs` is `[]` and `web.url` is `""`.
+
 ## JavaScript dialogs
 
 alert / confirm / prompt / "Leave site?" block the page while open, so say how to answer

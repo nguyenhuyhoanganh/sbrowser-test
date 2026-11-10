@@ -14,6 +14,12 @@ WEB_EVIDENCE_BUDGET = 30
 WEB_EVIDENCE_STEP = 10
 
 
+def _shown(session) -> bool:
+    """The session's browser runs and has a window (it starts without one until the test's
+    first page): evidence never opens a window just to picture it."""
+    return session is not None and session.alive and getattr(session, "has_window", True)
+
+
 def screen_grab(path: Path, session=None, cfg=None) -> Path:
     """What the user sees: the browser's windows (frame + native bubbles/dialogs), which a
     screenshot of the tab cannot show. ``report.screen_capture: screen``, or no browser window
@@ -21,7 +27,8 @@ def screen_grab(path: Path, session=None, cfg=None) -> Path:
     from PIL import ImageGrab
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    if session is not None and (cfg is None or cfg.get("report.screen_capture", "window") == "window"):
+    window = cfg is None or cfg.get("report.screen_capture", "window") == "window"
+    if window and session is not None and getattr(session, "has_window", True):
         try:
             native = session.native
             if native is not None:
@@ -102,7 +109,7 @@ def _grab(session, rec: dict, need_viewport: bool) -> tuple | None:
 def action_picture(session, run_dir: Path, nodeid: str, rec: dict, n: int, i: int, mark: dict) -> None:
     """Picture taken right BEFORE interaction ``i`` of step ``n``, with a red frame on its
     target (the menu or dialog is still open then) -> ``steps/<test>/NN-I_<kind>.jpg``."""
-    if session is None or not session.alive:
+    if not _shown(session):
         return
     grabbed = _grab(session, rec, need_viewport=bool(mark.get("web")))
     if grabbed is None:
@@ -115,7 +122,7 @@ def action_picture(session, run_dir: Path, nodeid: str, rec: dict, n: int, i: in
 def step_screenshot(session, run_dir: Path, nodeid: str, rec: dict, n: int) -> None:
     """Picture of how step ``n`` ended -> ``steps/<test>/NN_<status>_<step>.jpg`` (its
     interactions have their own pictures, see action_picture)."""
-    if session is None or not session.alive:
+    if not _shown(session):
         return
     grabbed = _grab(session, rec, need_viewport=False)
     if grabbed is None:
@@ -187,7 +194,7 @@ def result_screenshot(session, cfg, run_dir: Path, nodeid: str) -> str:
     try:
         if can_grab_screen(cfg):
             return str(screen_grab(out, session, cfg))
-        if session is not None and session.alive:
+        if _shown(session):
             return str(session.web.screenshot(out))
     except Exception as e:  # noqa: BLE001 - a missing picture must not fail the test
         log.warning("result screenshot failed: %s", e)
@@ -207,7 +214,7 @@ def collect_failure(session, cfg, run_dir: Path, res: dict) -> tuple[Path, list[
         except Exception as e:  # noqa: BLE001 - evidence is best effort
             log.warning("evidence %s failed: %s", name, e)
 
-    alive = session is not None and session.alive
+    alive = _shown(session)
     # OS-level evidence first: it never depends on the page (a print preview or another
     # modal browser UI can block every command sent to the page)
     if can_grab_screen(cfg) and cfg.get("report.screenshot_on_failure", True):

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from playwright.async_api import Error as PlaywrightError
 
-from sbtest.utils import poll
+from sbtest.utils import log, poll
 
 
 class DialogPlan:
@@ -42,6 +42,10 @@ class NavigationMixin:
         """
         preloaded, self.preloaded_url = getattr(self, "preloaded_url", ""), ""
         self._frames.clear()
+        if not self.has_window and self._new_window is not None:
+            # the browser has no window yet: open the first one directly on the page
+            self._open_first_window(url, wait and blocking)
+            return
         if blocking and wait and preloaded and url.rstrip("/") == preloaded.rstrip("/") \
                 and self.url.rstrip("/") == url.rstrip("/"):
             # the browser start already sent the first tab here (browser.start_page): no reload
@@ -53,6 +57,19 @@ class NavigationMixin:
         self.run(self._goto(url), self.page_load_timeout + 5, f"open {url}")
         if wait:
             self.wait_ready()
+
+    def _open_first_window(self, url: str, wait: bool) -> None:
+        """The browser's first window, opened on ``url`` (no about:blank before it; Back off)."""
+        self.page = self._new_window(url)
+        if not wait or url == "about:blank":
+            return
+        page = self.page
+        try:
+            poll(lambda: page.url not in ("", "about:blank"), self.page_load_timeout, 0.05, f"open {url}")
+        except TimeoutError:   # a URL that only downloads leaves the tab empty: no page to wait for
+            log.warning("the new window stayed on about:blank after opening %s (a download?)", url)
+            return
+        self.wait_ready()
 
     async def _goto(self, url: str) -> None:
         try:
@@ -66,21 +83,32 @@ class NavigationMixin:
         self.open(self.cfg.page_url(name))
 
     def back(self) -> None:
-        self.run(self.page.go_back())
+        """Back button of the tab; returns once the previous page is ready."""
+        self._history(self.page.go_back)
 
     def forward(self) -> None:
-        self.run(self.page.go_forward())
+        """Forward button of the tab; returns once the next page is ready."""
+        self._history(self.page.go_forward)
+
+    def _history(self, go) -> None:
+        # a page restored from the back/forward cache fires no "load": wait for the commit,
+        # then for the document itself
+        self._frames.clear()
+        self.run(go(wait_until="commit", timeout=self.page_load_timeout * 1000), self.page_load_timeout + 5,
+                 go.__name__)
+        self.wait_ready()
 
     def refresh(self) -> None:
         self.run(self.page.reload())
 
     @property
     def url(self) -> str:
-        return self.page.url
+        """URL of the current tab ("" while the browser has no window yet)."""
+        return self.page.url if self.has_window else ""
 
     @property
     def title(self) -> str:
-        return self.run(self.page.title())
+        return self.run(self.page.title()) if self.has_window else ""
 
     # -- tabs ------------------------------------------------------------------
     @property
@@ -94,6 +122,10 @@ class NavigationMixin:
         return page
 
     def new_tab(self, url: str | None = None):
+        if not self.has_window and self._new_window is not None:   # no window yet: this is the first
+            self._frames.clear()
+            self._open_first_window(url or "about:blank", True)
+            return self.page
         self._use(self.run(self.context.new_page()))
         if url:
             self.open(url)

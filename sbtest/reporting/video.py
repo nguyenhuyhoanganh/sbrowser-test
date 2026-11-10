@@ -49,6 +49,8 @@ class Recorder:
         self._stop = threading.Event()
         self._thread = None
         self._writer = None
+        self._begun = False
+        self._lock = threading.Lock()
         self.frames = 0
 
     # -- for subclasses ----------------------------------------------------------------
@@ -70,12 +72,17 @@ class Recorder:
         """Box (left, top, right, bottom) of interaction ``m`` in the marks' coordinates, or None."""
         return m.get("screen")
 
-    # -- called on the test thread ---------------------------------------------------
-    def start(self) -> "Recorder":
+    def _window_shown(self) -> bool:
+        """The browser has a window to record (it starts without one: the test's first page
+        opens it). Never opens one itself."""
+        return getattr(self.session, "has_window", True)
+
+    def _open(self) -> None:
+        """First frame and the ffmpeg writer (the video size is the first frame's)."""
         import imageio_ffmpeg
 
         self._begin()
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._begun = True
         first = self._frame()
         if first is None:
             raise RuntimeError("no first video frame")
@@ -86,6 +93,30 @@ class Recorder:
         self._writer.send(None)
         self._writer.send(first.tobytes())
         self.frames = 1
+
+    def _try_open(self) -> None:
+        with self._lock:   # the test thread (window opened) and the video thread may both try
+            if self._writer is None and not self._stop.is_set():
+                self._open()
+
+    def _on_window(self) -> None:
+        """The browser opened its first window (session.window_opened): record from now on."""
+        try:
+            self._try_open()
+        except Exception as e:  # noqa: BLE001 - recording never fails a test
+            log.warning("video recording not started: %s", e)
+
+    # -- called on the test thread ---------------------------------------------------
+    def start(self) -> "Recorder":
+        """Start recording; while the browser has no window yet, the video starts when it opens."""
+        import imageio_ffmpeg  # noqa: F401 - fail here, not in the thread, when it is missing
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        listeners = getattr(self.session, "window_opened", None)
+        if listeners is not None:
+            listeners.append(self._on_window)
+        if self._window_shown():
+            self._try_open()
         self._thread = threading.Thread(target=self._loop, name="sbtest-video", daemon=True)
         self._thread.start()
         return self
@@ -101,10 +132,14 @@ class Recorder:
     def stop(self) -> Path | None:
         """Finish the file; returns its path (None when nothing was recorded)."""
         self._stop.set()
+        listeners = getattr(self.session, "window_opened", None)
+        if listeners is not None and self._on_window in listeners:
+            listeners.remove(self._on_window)
         if self._thread is not None:
             self._thread.join(timeout=10)
         try:
-            self._end()
+            if self._begun:
+                self._end()
         except Exception as e:  # noqa: BLE001 - browser already gone
             log.debug("video source not closed: %s", e)
         if self._writer is not None:
@@ -118,6 +153,14 @@ class Recorder:
     # -- background thread -------------------------------------------------------------
     def _loop(self) -> None:
         tick = 1 / self.fps
+        while self._writer is None:   # no window yet: the video starts when the first page opens
+            if self._stop.wait(tick):
+                return
+            if self._window_shown():
+                try:
+                    self._try_open()
+                except Exception as e:  # noqa: BLE001 - e.g. the browser restarting: try again
+                    log.debug("video not started yet: %s", e)
         next_t = time.monotonic() + tick
         frame = None
         while not self._stop.is_set():
@@ -186,6 +229,8 @@ class ScreenRecorder(Recorder):
     def _grab(self):
         from PIL import ImageGrab
 
+        if not self._window_shown():   # restart: the new browser has no window yet - keep the last frame
+            return None
         if time.monotonic() - self._box_time > 1:   # windows open / close (dialogs, popups)
             self.box, self._box_time = self.session.native.window_rect(), time.monotonic()
         return ImageGrab.grab(bbox=self.box, all_screens=True)
@@ -253,7 +298,7 @@ class TabRecorder(Recorder):
         from PIL import Image
 
         web = self.session.web            # None while the test restarts the browser
-        if web is not None and web.page is not self._page and not web.page.is_closed():
+        if web is not None and web.has_window and web.page is not self._page and not web.page.is_closed():
             web.run(self._cast(web.page), 10)   # the test moved to another tab: follow it
         latest = self._latest
         if latest is None:

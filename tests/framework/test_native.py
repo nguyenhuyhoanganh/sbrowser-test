@@ -201,6 +201,36 @@ def test_startup_bubbles_never_hold_up_the_test():
     assert len(looks) == 2 and nb._bubbles_until == 0.0
 
 
+def test_startup_bubble_close_is_checked_and_pressed_again(monkeypatch):
+    """Samsung's bubble ignores a press that comes right after it showed: the close is only
+    counted once the bubble is gone, else pressed again."""
+    nb = browser_ui.NativeBrowser.__new__(browser_ui.NativeBrowser)
+    rule = {"text": "(?i)has been updated", "button": "Close"}
+    nb.ui_map = {"startup_bubbles": [rule]}
+    presses = []
+    shown = {"on": True}
+    # the first press is ignored, the second one closes the bubble
+    button = SimpleNamespace(invoke=lambda: (presses.append(1), shown.__setitem__("on", len(presses) < 2)))
+    bubble = SimpleNamespace(parent=lambda: None)
+    label = SimpleNamespace(parent=lambda: bubble)
+
+    def find_in(roots, depth, control_type=None, **crit):
+        if control_type == "Text":
+            return label if shown["on"] else None
+        return button if control_type == "Button" and roots == [bubble] else None
+
+    monkeypatch.setattr(browser_ui.uia, "find_in", find_in)
+    nb.windows = lambda: ["main"]
+    assert nb.dismiss_startup_bubbles() == [rule["text"]]
+    assert len(presses) == 2
+
+    presses.clear()
+    shown["on"] = True
+    button.invoke = lambda: presses.append(1)             # never closes
+    assert nb.dismiss_startup_bubbles() == []              # not counted: the watch goes on
+    assert len(presses) == 2
+
+
 def test_native_ui_map_uses_stable_criteria():
     """Views number their AutomationIds in creation order (``view_1023``): they change between
     builds, so the ui map must not use them. Each entry names a class, an id, or a control

@@ -10,10 +10,13 @@
 
 We start the exe ourselves with ``--remote-debugging-port`` and Playwright attaches to it over
 the DevTools protocol (``connect_over_cdp``): the browser is the real build with its real UI,
-no driver binary has to match its Chromium version.
+no driver binary has to match its Chromium version. It starts without a window; the first
+window opens directly on a page: the start page (``browser.start_page``) right after the
+start, else the page of the test's first ``web.open`` (a native step before it: about:blank).
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
 import time
@@ -76,6 +79,9 @@ class BrowserSession:
         self._prefs_seeded = False
         self.timings: dict[str, float] = {}
         self.pid: int | None = None
+        #: called (no arguments) right after ``new_window`` opened a window, e.g. by the video
+        #: recorder, which starts with the browser's first window
+        self.window_opened: list = []
 
     # -- resolution --------------------------------------------------------------
     @property
@@ -129,12 +135,18 @@ class BrowserSession:
         try:   # whatever fails while starting, the browser launched here must not stay on screen
             # restart(): the previous run's port file would point at a dead port
             (self.profile.dir / "DevToolsActivePort").unlink(missing_ok=True)
+            # no window at start (the command line cannot open chrome:// pages - it would show
+            # about:blank or the home page): the first window is opened on the start page once
+            # Playwright is attached, else on the page of the test's first web.open
             self._attach_proc = subprocess.Popen([self.exe, *self._browser_args(), "--remote-debugging-port=0",
-                                                  "about:blank"],
+                                                  "--no-startup-window"],
                                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             port = wait_devtools_port(self.profile.dir)
             t_browser = time.monotonic()
             page = rt.run(self._attach(rt, port), 60, "attach to the browser")
+            first = self._first_url()
+            if page is None and first:
+                page = rt.run(self._window_on(first), 30, f"open the first window on {first}")
             # where the start time goes (shown per test by run.py and in the summary)
             self.timings = {"browser": round(t_browser - t0, 1), "attach": round(time.monotonic() - t_browser, 1)}
         except Exception as e:
@@ -151,48 +163,81 @@ class BrowserSession:
                        if any("profile" in t.lower() for t in blocking) else "")) from e
             raise
         self.pid = self._attach_proc.pid
-        self.web = Web(self.context, page, self.cfg, native_factory=lambda: self.native)
-        self._open_start_page()
+        self.web = Web(self.context, page, self.cfg, native_factory=lambda: self.native, new_window=self.new_window)
+        if first:   # the first web.open of the start page does not load it again (once it is there)
+            self.web.preloaded_url = first
         log.info("Started browser pid=%s chromium=%s profile=%s", self.pid, self.info.get("chromium"), self.profile.dir)
         return self
 
     async def _attach(self, rt, port: int):
-        self.browser = await rt.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=45000)
+        # no_defaults: leave downloads, fonts, focus and media (color scheme) to the browser.
+        # Without it Playwright takes over downloads (its own folder, random names), and even
+        # Browser.setDownloadBehavior "default" afterwards leaves "Show in folder" dead.
+        self.browser = await rt.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=45000,
+                                                                     no_defaults=True)
         self.context = self.browser.contexts[0]
         self.context.set_default_timeout(float(self.cfg.get("timeouts.default", 10)) * 1000)
         self.context.set_default_navigation_timeout(float(self.cfg.get("timeouts.page_load", 30)) * 1000)
         cdp = await self.browser.new_browser_cdp_session()
-        # Playwright redirects downloads into its own temp folder under random names: give them
-        # back to the browser (the profile's download folder, the Downloads bubble, Save As)
-        await cdp.send("Browser.setDownloadBehavior", {"behavior": "default"})
         v = await cdp.send("Browser.getVersion")
         self.info = {"product": v.get("product", ""), "user_agent": v.get("userAgent", ""),
                      "chromium": chromium_version_from({"Browser": v.get("product", ""),
                                                         "User-Agent": v.get("userAgent", "")}) or ""}
         await cdp.detach()
-        return self.context.pages[0] if self.context.pages else await self.context.new_page()
+        # a browser started with a window (attached to by hand) already has its first tab
+        return self.context.pages[0] if self.context.pages else None
 
-    # -- start page --------------------------------------------------------------
+    # -- first window and start page -----------------------------------------------
     def _start_url(self) -> str:
         page = self.start_page or self.cfg.get("browser.start_page") or ""
         return self.cfg.page_url(page) if page else ""
 
-    def _open_start_page(self) -> None:
-        """Send the first tab from about:blank to the start page without waiting for it: it
-        loads while the fixtures finish. The command line cannot open chrome:// pages
-        (Chromium drops them); the home page (newtab) is not used: Samsung blocks DevTools
-        on it."""
+    def _first_url(self) -> str:
+        """URL the first window opens on at start: the start page; "" = no window until the
+        test's first web.open. The home page (newtab) is not used: Samsung blocks DevTools on it."""
         url = self._start_url()
-        if not url:
-            return
         if "newtab" in url:
             log.warning("start page %s skipped: DevTools is blocked on the home page", url)
-            return
+            return ""
+        return url
+
+    @property
+    def has_window(self) -> bool:
+        """False while the browser runs without a window (nothing opened since the start)."""
+        return self.web is not None and self.web.has_window
+
+    def new_window(self, url: str):
+        """Open a browser window directly on ``url`` (nothing waits for the page to load) and
+        return its Playwright page: no about:blank in front of it, Back is off - like a user
+        who opened the page. Falls back to about:blank when ``url`` cannot be opened there."""
+        page = runtime().run(self._window_on(url), 30, f"open a window on {url}")
+        if self.web is not None and self.web._page is None:
+            self.web._page = page   # listeners may use web.page: it is this window's
+        for listener in list(self.window_opened):
+            try:
+                listener()
+            except Exception as e:  # noqa: BLE001 - a listener (video) never fails the test
+                log.warning("window listener failed: %s", e)
+        return page
+
+    async def _window_on(self, url: str):
+        w, h = self.cfg.get("browser.window_size") or (1400, 900)
+        before = set(self.context.pages)
+        cdp = await self.browser.new_browser_cdp_session()
         try:
-            self.web.run(self.web.page.goto(url, wait_until="commit"), 10)
-            self.web.preloaded_url = url
-        except Exception as e:  # noqa: BLE001 - the test opens the page itself then
-            log.warning("start page %s not opened (%s)", url, e)
+            for target in dict.fromkeys([url, "about:blank"]):
+                try:
+                    await cdp.send("Target.createTarget", {"url": target, "newWindow": True, "width": w, "height": h})
+                    break
+                except Exception as e:  # noqa: BLE001 - try about:blank instead
+                    log.warning("window not opened on %s (%s)", target, e)
+        finally:
+            await cdp.detach()
+        while True:      # Playwright reports the new tab a moment later
+            new = [p for p in self.context.pages if p not in before]
+            if new:
+                return new[0]
+            await asyncio.sleep(0.02)
 
     def _blocking_dialogs(self) -> list[str]:
         """Titles of message boxes the browser shows on start ("Profile error occurred"), which
@@ -234,6 +279,8 @@ class BrowserSession:
 
             pid = self.pid or poll(lambda: find_browser_pid(str(self.profile.dir)), 15, message="browser pid")
             self._native = NativeBrowser(pid, self.cfg)
+            # a native step before any page was opened: the window opens on about:blank
+            self._native.ensure_window = lambda: self.web.page if self.web is not None else None
         return self._native
 
     @property

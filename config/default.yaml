@@ -8,10 +8,14 @@ browser:
   # We start the exe with --remote-debugging-port and Playwright attaches to it over DevTools:
   # no driver binary, nothing to match with the build's Chromium version.
   headless: false
-  # Page the first tab opens right after start, without waiting for it: a `pages` name
-  # (history, bookmarks...) or a URL; "" = stay on about:blank. The browser starts on
-  # about:blank anyway (the command line cannot open chrome:// pages) and the home page
-  # (newtab) cannot be used (Samsung blocks DevTools there). Per test: browser(start_page=...).
+  # The browser starts without a window (the command line cannot open chrome:// pages) and
+  # its first window opens directly on a page - no about:blank before it, Back is off:
+  #   start_page set -> on that page right after the start (nothing waits for it to load):
+  #                     a `pages` name (history, bookmarks...) or a URL
+  #   ""             -> on the page of the test's first web.open / pages.x.open; a native
+  #                     step before any page opens it on about:blank
+  # The home page (newtab) cannot be used (Samsung blocks DevTools there).
+  # Per test: browser(start_page=...).
   start_page: ""
   window_size: [1400, 900]
   # Extra command line switches for the browser.

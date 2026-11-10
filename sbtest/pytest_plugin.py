@@ -16,7 +16,7 @@ Markers:
     @pytest.mark.browser(bookmarks=..., prefs={...}, args=[...], extensions=["sample_addon"], profile="name",
                          start_page="history")
                                   preconditions applied BEFORE the browser starts
-                                  (start_page: page the first tab opens right after the start)
+                                  (start_page: page the browser window opens on)
     @pytest.mark.sanity / slow
     Feature markers come from the folder: tests/features/<feature>/ -> <feature>.
 """
@@ -256,10 +256,11 @@ def _reset_shared(s: BrowserSession) -> None:
     """Leave a shared browser neutral: one tab on about:blank, no dialogs."""
     try:
         tabs = s.web.tabs
-        for tab in tabs[1:]:
-            s.web.run(tab.close())
-        s.web.switch_tab(0)
-        s.web.open("about:blank")
+        if tabs:   # none when the test opened no page (the browser starts without a window)
+            for tab in tabs[1:]:
+                s.web.run(tab.close())
+            s.web.switch_tab(0)
+            s.web.open("about:blank")
         del s.web.dialogs[:], s.web.console[:]
         if s.native:
             s.native.close_stray_dialogs()

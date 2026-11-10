@@ -18,6 +18,7 @@ CONFIG_DIR = ROOT / "config"
 CASES_DIR = ROOT / "tests" / "features"   # case docs (*.md) live next to their tests
 RESOURCES_DIR = ROOT / "resources"
 DATA_DIR = RESOURCES_DIR / "data"
+EXTENSIONS_DIR = RESOURCES_DIR / "extensions"   # sample add-ons; tests copy one to pack / load it
 SITE_DIR = RESOURCES_DIR / "site"
 
 # env var -> dotted config key

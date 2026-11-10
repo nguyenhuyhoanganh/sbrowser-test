@@ -74,15 +74,16 @@ def test_start_page_url_and_first_open_skips_the_reload(tmp_path):
         {"browser": {"start_page": "history"}, "pages": {"scheme": "chrome", "history": "history", "newtab": "newtab"}}))
     cfg = load_config(config_dir=tmp_path)
     s = BrowserSession(cfg, out_dir=tmp_path)
-    assert s._start_url() == "chrome://history"
+    assert s._start_url() == s._first_url() == "chrome://history"
     blocked = BrowserSession(cfg, out_dir=tmp_path, start_page="newtab")
-    blocked.web = SimpleNamespace(preloaded_url="")
-    blocked._open_start_page()        # DevTools is blocked on the home page: not opened
-    assert blocked.web.preloaded_url == ""
+    assert blocked._first_url() == ""   # DevTools is blocked on the home page: no window at start
+    (tmp_path / "default.yaml").write_text(yaml.safe_dump({"browser": {"start_page": ""}}))
+    assert BrowserSession(load_config(config_dir=tmp_path), out_dir=tmp_path)._first_url() == ""
 
     gets = []
     nav = NavigationMixin()
     nav.page = SimpleNamespace(url="chrome://history/")
+    nav.has_window, nav._new_window = True, None    # the browser window opened on the start page
     nav._frames = []
     nav.page_load_timeout = 30
     nav._goto = lambda url: url

@@ -107,7 +107,7 @@ Everything is local - no internet.
 @pytest.mark.browser(extensions=["sample_addon"])             # resources/extensions/<dir>, unpacked
 @pytest.mark.browser(args=["--start-maximized"])              # extra switches
 @pytest.mark.browser(profile="with_passwords")                # copy resources/profiles/<name>/ first
-@pytest.mark.browser(start_page="history")                   # first tab opens it right after the start
+@pytest.mark.browser(start_page="history")                   # the browser window opens on it (no about:blank, Back off)
 ```
 
 A test with `browser(...)` always gets its own fresh browser.

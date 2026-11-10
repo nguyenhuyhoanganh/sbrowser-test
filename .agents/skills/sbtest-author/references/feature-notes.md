@@ -25,10 +25,18 @@ differently from these notes: report it and let the user verify it, then record 
 - The framework starts the exe itself with `--remote-debugging-port` and Playwright attaches
   to it; nothing has to match the build's Chromium version. Samsung blocks DevTools on the
   home page (newtab): never use it as a start page.
+- Internal pages cannot be opened from the command line (`chrome://` and `internet://` both
+  give the home page), nor with `web.open("internet://...")` (`ERR_ABORTED`). A new tab made
+  over DevTools (`Target.createTarget`) can be opened on one, `internet://` included: the
+  browser starts with `--no-startup-window` and its first window is made on the start page,
+  else on the test's first page (`web.open` / `pages.x.open`). Until then `web.tabs` is
+  empty and `web.url` is "". The "has been updated" bubble does not show on such starts.
 - Fresh profiles may show a "Samsung Browser has been updated." bubble (some starts only):
   nothing waits for it - one quick look after start, then for 10 s every native action first
   closes it if it has shown up (`startup_bubbles` in `config/native_ui.yaml`,
-  `native.startup_bubble_watch`). Web-only tests are not affected.
+  `native.startup_bubble_watch`). Web-only tests are not affected. The bubble ignores a
+  Close pressed right after it showed (about 1 start in 5): the close is checked and
+  pressed again.
 - A click on the button a bubble/toast is anchored to (the star under "Page bookmarked.") only
   closes the bubble: `native.wait_dialog_gone("bookmark_added")` first.
 - The address bar is a Group named "Address and search bar, <url>" (no Edit control): read it
