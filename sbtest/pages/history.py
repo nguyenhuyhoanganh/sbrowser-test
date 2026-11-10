@@ -16,8 +16,6 @@ How it differs from Chromium:
 """
 from __future__ import annotations
 
-from playwright.async_api import Error as PlaywrightError
-
 from sbtest.pages.base import BasePage
 from sbtest.web import Element
 
@@ -51,13 +49,7 @@ class HistoryPage(BasePage):
     def rows(self) -> list[dict]:
         """``[{title, url, domain, time, day}]`` of the listed entries (newest first); ``day``
         is set on the first entry of each day only."""
-        for attempt in range(5):
-            try:
-                return self.web.js(_JS_ROWS, self.items())
-            except PlaywrightError:   # the list re-rendered while read
-                if attempt == 4:
-                    raise
-        return []
+        return self.web.js(_JS_ROWS, self.items())
 
     def titles(self) -> list[str]:
         return [r["title"] for r in self.rows()]

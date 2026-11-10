@@ -148,7 +148,7 @@ def pytest_collection_finish(session):
     cfg = config._sb_cfg
     artifacts = cfg.path("paths.artifacts")
     if any(feature_of(i) for i in session.items):
-        from sbtest.browser.profile import SHORT_ROOT
+        from sbtest.browser.profile import SHORT_ROOT, profiles_root
         from sbtest.utils import kill_browsers_using
 
         stale = kill_browsers_using([config._sb_run_dir / "profiles", SHORT_ROOT])
@@ -156,10 +156,6 @@ def pytest_collection_finish(session):
             log.warning("closed %d test browser(s) left by an earlier run: %s", len(stale), stale)
         for p in clear_dir(config._sb_run_dir, artifacts):
             log.warning("left from the previous run (in use, delete it by hand): %s", p)
-        for old in ("runs", "logs", "profiles"):   # earlier layout: runs/<timestamp>/, shared logs/profiles
-            shutil.rmtree(artifacts / old, ignore_errors=True)
-        from sbtest.browser.profile import SHORT_ROOT, profiles_root
-
         if profiles_root(config._sb_run_dir / "profiles") == SHORT_ROOT:   # repo in a deep folder
             log.info("browser profiles in %s (the repo path is too long for them)", SHORT_ROOT)
             shutil.rmtree(SHORT_ROOT, ignore_errors=True)                  # leftovers of the last run
@@ -437,7 +433,6 @@ def pytest_runtest_makereport(item, call):
                 shot = next((out / n for n in ("screen.png", "page.png") if (out / n).exists()), None)
                 res["screenshot"] = str(shot) if shot else ""
                 rep.sections.append(("sbtest evidence", f"{out}\n" + ", ".join(saved)))
-                evidence.attach_to_html_report(rep, [out / "page.png", out / "screen.png"])
             except Exception as e:  # noqa: BLE001 - never let evidence break the run
                 rep.sections.append(("sbtest evidence", f"evidence collection failed: {type(e).__name__}: {e}"))
 

@@ -13,8 +13,6 @@ How it differs from Chromium:
 """
 from __future__ import annotations
 
-from playwright.async_api import Error as PlaywrightError
-
 from sbtest.pages.base import BasePage
 from sbtest.web import Element
 
@@ -48,13 +46,7 @@ class ExtensionsPage(BasePage):
 
     def names(self) -> list[str]:
         """Names shown as cards in the UI (one read: the list re-renders while it filters)."""
-        for attempt in range(5):
-            try:
-                return self.web.js(_JS_CARD_NAMES, self.web.find_all(self.ITEMS))
-            except PlaywrightError:
-                if attempt == 4:
-                    raise
-        return []
+        return self.web.js(_JS_CARD_NAMES, self.web.find_all(self.ITEMS))
 
     def item(self, name: str, timeout: float | None = None) -> Element:
         """The card of add-on ``name``."""

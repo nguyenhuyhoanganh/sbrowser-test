@@ -32,10 +32,8 @@ class BookmarksPage(BasePage):
     ITEMS = "bookmarks-app >>> bookmarks-list >>> bookmarks-item"
     ITEM_TITLE = "bookmarks-app >>> bookmarks-list >>> bookmarks-item >>> #website-title"
     TREE_ITEM = "deepcss=#container[role=treeitem]"
-    SIDEBAR_FOLDER = "deepcss=bookmarks-folder-node"
     EDIT_DIALOG = "bookmarks-app >>> bookmarks-command-manager >>> bookmarks-edit-dialog"
     RIGHT_MENU = "bookmarks-app >>> bookmarks-toolbar >>> #menuButton"        # right ⋮ of the list
-    TOOLBAR_MENU = RIGHT_MENU
     OPTIONS_MENU = "bookmarks-app >>> bookmarks-toolbar >>> si-toolbar.bookmarks-toolbar >>> #moreMenuButton"  # left ⋮
     UNDO = "bookmarks-app >>> #undoButton"
     BAR_FOLDER = "Bookmark bar"
@@ -85,9 +83,6 @@ class BookmarksPage(BasePage):
                             f"bookmark {title!r} {'present' if present else 'absent'}")
 
     # -- navigate ------------------------------------------------------------------
-    def expand_tree(self) -> None:
-        """The Samsung tree renders expanded; nothing to do (kept for tests written for Chromium)."""
-
     def open_folder(self, name: str) -> None:
         """Click a folder in the left tree; the list shows its content."""
         self.web.click(f"deepcss=#container[role=treeitem][aria-label={q(name)}]")

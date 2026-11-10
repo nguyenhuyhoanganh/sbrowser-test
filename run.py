@@ -16,7 +16,7 @@ Outputs in artifacts/test-results/ (the latest run only: emptied when a run star
                       result, screenshot of how it ended) + verdict BUILD PASSED / FAILED
   share/              Confluence page body + files to attach to a Confluence page or Jira issue
   failures/<test>/    failure.txt, page.png (element outlined), screen.png, dom.txt, uia.txt
-  results.json, junit.xml, report.html (raw pytest report), steps/ with --screenshot-steps
+  results.json, junit.xml, steps/ with --screenshot-steps
   videos/ with --record, traces/ with --trace (python -m playwright show-trace <zip>)
   profiles/           with --keep-profile
 Rebuild the report: python -m sbtest.tools.report [--open]
@@ -24,7 +24,6 @@ Rebuild the report: python -m sbtest.tools.report [--open]
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import subprocess
 import sys
 import time
@@ -83,8 +82,6 @@ def main(argv: list[str] | None = None) -> int:
     run_dir = load_config().path("paths.results")   # emptied by the plugin when the tests start
     pargs = [str(ROOT / "tests" / "features"), f"--junitxml={run_dir / 'junit.xml'}",
               "-p", "no:cacheprovider"]
-    if importlib.util.find_spec("pytest_html"):  # optional; find_spec avoids importing it too early
-        pargs += [f"--html={run_dir / 'report.html'}", "--self-contained-html"]
     for flag, value in (("--exe", args.exe), ("--feature", args.feature), ("--pw-trace", args.trace),
                         ("--case", args.case), ("--browser-scope", args.scope),
                         ("--share-media", args.share_media)):

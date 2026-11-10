@@ -1,6 +1,5 @@
 playwright>=1.49        # attaches to the browser over DevTools; no `playwright install` needed
 pytest>=8.0
-pytest-html>=4.1
 pytest-rerunfailures>=14.0
 pyyaml>=6.0
 psutil>=5.9

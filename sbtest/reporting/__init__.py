@@ -4,7 +4,7 @@
     cleanup.py            empty an output folder before a run (latest run only)
     live.py               the readable console output of run.py
     evidence.py           failure evidence (failure.txt, page.png with the element outlined,
-                          screen.png, dom.txt, aria.yaml, page.html, console.txt, uia.txt) + per-step screenshots
+                          screen.png, dom.txt, aria.yaml, console.txt, uia.txt) + per-step screenshots
     video.py              --record: one MP4 per test
     results.py            results.json: one record per test (outcome, case ids, steps, evidence)
     report.py             results.json + case docs -> report/ (index.html, report.md)

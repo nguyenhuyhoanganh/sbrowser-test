@@ -1,7 +1,6 @@
 """Configuration loading.
 
 Layers (later wins): default.yaml < local.yaml < SB_* env vars < CLI overrides.
-A ``targets.samsung`` section in local.yaml (older layout) is still applied after local.yaml.
 """
 from __future__ import annotations
 
@@ -19,7 +18,6 @@ CONFIG_DIR = ROOT / "config"
 CASES_DIR = ROOT / "tests" / "features"   # case docs (*.md) live next to their tests
 RESOURCES_DIR = ROOT / "resources"
 DATA_DIR = RESOURCES_DIR / "data"
-EXTENSIONS_DIR = RESOURCES_DIR / "extensions"
 SITE_DIR = RESOURCES_DIR / "site"
 
 # env var -> dotted config key
@@ -117,9 +115,7 @@ def _read(path: Path) -> dict:
 
 def load_config(overrides: dict | None = None, config_dir: Path = CONFIG_DIR) -> Config:
     overrides = {k: v for k, v in (overrides or {}).items() if v is not None}
-    local = _read(config_dir / "local.yaml")
-    data = deep_merge(_read(config_dir / "default.yaml"), {k: v for k, v in local.items() if k != "targets"})
-    data = deep_merge(data, (local.get("targets") or {}).get("samsung") or {})  # older local.yaml layout
+    data = deep_merge(_read(config_dir / "default.yaml"), _read(config_dir / "local.yaml"))
     for env, key in ENV_MAP.items():
         if os.environ.get(env):
             set_dotted(data, key, _coerce(os.environ[env]))

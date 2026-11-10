@@ -222,7 +222,7 @@ def test_failure_evidence_of_a_page(live, web, site, tmp_path):
     web.find("#confirm")
     res = {"nodeid": "tests/x.py::test_y", "cases": ["X-1"], "failed_step": "2. Do", "expected": "done", "message": "E"}
     out, saved = evidence.collect_failure(session, session.cfg, tmp_path, res)
-    assert {"failure.txt", "page.png", "dom.txt", "aria.yaml", "page.html", "console.txt"} <= set(saved)
+    assert {"failure.txt", "page.png", "dom.txt", "aria.yaml", "console.txt"} <= set(saved)
     assert "last element: #confirm" in (out / "failure.txt").read_text()
     assert 'button "Confirm"' in (out / "aria.yaml").read_text()
     notes = (out / "console.txt").read_text()

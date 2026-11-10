@@ -1,7 +1,6 @@
 """Evidence written when a test fails, and optional screenshots after every step."""
 from __future__ import annotations
 
-import base64
 import os
 import time
 from pathlib import Path
@@ -248,7 +247,6 @@ def collect_failure(session, cfg, run_dir: Path, res: dict) -> tuple[Path, list[
                                           + dump_dom(web))
                 # the accessibility tree: roles, names and states - the short view of the page
                 _write("aria.yaml", lambda: f"# URL: {web.url}\n" + web.aria_snapshot())
-                _write("page.html", web.html)
         finally:
             web.command_timeout = saved_timeout
         if "page.png" not in saved and "dom.txt" not in saved:
@@ -279,16 +277,3 @@ def collect_failure(session, cfg, run_dir: Path, res: dict) -> tuple[Path, list[
     (out / "failure.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     saved.insert(0, "failure.txt")
     return out, saved
-
-
-def attach_to_html_report(rep, paths: list[Path]) -> None:
-    """Embed screenshots in the self-contained pytest-html report (if the plugin is installed)."""
-    try:
-        from pytest_html import extras
-    except ImportError:
-        return
-    extra = getattr(rep, "extras", [])
-    for p in paths:
-        if p.exists():
-            extra.append(extras.png(base64.b64encode(p.read_bytes()).decode("ascii"), name=p.name))
-    rep.extras = extra

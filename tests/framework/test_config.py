@@ -23,9 +23,6 @@ def test_local_yaml_layers(tmp_path, monkeypatch):
         {"pages": {"scheme": "chrome", "display_scheme": "internet", "history": "history"}, "browser": {"exe": ""}}))
     (tmp_path / "local.yaml").write_text(yaml.safe_dump({"browser": {"exe": "a.exe"}}))
     assert load_config(config_dir=tmp_path).get("browser.exe") == "a.exe"
-    # older layout: targets.samsung section still applies
-    (tmp_path / "local.yaml").write_text(yaml.safe_dump({"targets": {"samsung": {"browser": {"exe": "s.exe"}}}}))
-    assert load_config(config_dir=tmp_path).get("browser.exe") == "s.exe"
     assert load_config({"browser.exe": "cli.exe"}, config_dir=tmp_path).get("browser.exe") == "cli.exe"
 
 

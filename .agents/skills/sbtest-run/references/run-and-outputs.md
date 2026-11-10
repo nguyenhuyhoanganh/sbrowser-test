@@ -58,12 +58,11 @@ The folder holds the latest run only: it is emptied when the next run starts. `<
 | `report/report.md` | same report in Markdown |
 | `share/` | the files to share the run on Confluence or Jira: `manifest.json` (`title`, `attachments`), `page.storage.html` (Confluence page body), `page.md` (same body in Markdown), `attachments/` (flat: `<case>_<test>.jpg` screenshot of every test + `<case>_...` videos / step pictures of the cases chosen with `--share-media`) |
 | `results.json` | every test: outcome, case ids, steps, failed step, error, screenshot, evidence paths, browser start times |
-| `failures/<test folder>/` | `failure.txt` (read first), `page.png` (failing element outlined in red), `screen.png` (browser windows incl. native dialogs), `dom.txt`, `aria.yaml` (accessibility tree of the page), `page.html`, `console.txt` (JS dialogs, console errors), `uia.txt`; `failure.txt` ends with the `trace:` path when a trace was kept |
+| `failures/<test folder>/` | `failure.txt` (read first), `page.png` (failing element outlined in red), `screen.png` (browser windows incl. native dialogs), `dom.txt`, `aria.yaml` (accessibility tree of the page), `console.txt` (JS dialogs, console errors), `uia.txt`; `failure.txt` ends with the `trace:` path when a trace was kept |
 | `results/<test folder>.png` | final screenshot of every passed test (used by the report) |
 | `videos/<test folder>.mp4` | `--record`: video of the test body - browser windows (only the current tab in a headless run, where there is no screen to record), the running case step at the bottom, each click / typing framed in red (also played in the report) |
 | `traces/<test folder>.zip` | `--trace` (failed tests) / `--trace all`: Playwright trace - every web action with DOM snapshot, screenshot, console and network; open with `python -m playwright show-trace <zip>` |
 | `steps/<test folder>/` | `--screenshot-steps`: `NN-I_<kind>.jpg` right before each interaction, its target framed in red; `NN_<status>_<step>.jpg` how each step ended (also in the report) |
-| `report.html` | raw pytest-html report |
 | `junit.xml` | JUnit result for CI |
 | `profiles/` | with `--keep-profile`: the browser profile of each test |
 

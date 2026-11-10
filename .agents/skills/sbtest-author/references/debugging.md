@@ -45,7 +45,6 @@ Each run empties `artifacts/test-results/` first. `<test folder>` = the test's n
 | `failures/<test folder>/page.png` | the tab, the last element the test used outlined in red |
 | `failures/<test folder>/screen.png` | the browser's windows as on screen: frame + bubbles / prompts / menus / its dialogs (`report.screen_capture: screen` for every monitor, e.g. File Explorer) |
 | `failures/<test folder>/dom.txt` | URL, title, tab count + full shadow-piercing DOM with locators |
-| `failures/<test folder>/page.html` | light DOM page source |
 | `failures/<test folder>/uia.txt` | UIA tree of all browser windows |
 | `failures/<test folder>/aria.yaml` | accessibility tree of the tab: roles, names, states - short enough to read whole |
 | `failures/<test folder>/console.txt` | JS dialogs the test met (and how they were answered), console errors / warnings, uncaught page errors |
