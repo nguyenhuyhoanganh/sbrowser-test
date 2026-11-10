@@ -78,6 +78,20 @@ def test_first_window_opens_on_the_first_page(live, web, site):
     assert web.js("return history.length") == 1      # the window was born on the page: Back is off
 
 
+def test_a_window_without_a_page_shows_the_home_page(live, site):
+    from sbtest.browser.session import BrowserSession
+
+    session, _ = live
+    s = BrowserSession(session.cfg, name="live_home", out_dir=session.out_dir).start()
+    try:
+        web = s.web
+        assert web.is_home(web.page) and len(web.tabs) == 1   # using the page before any open
+        web.open(site.url("/pages/page1.html"))             # leaves the home page in the same tab
+        assert web.title == "Static page 1" and len(web.tabs) == 1 and not web.is_home()
+    finally:
+        s.stop()
+
+
 def test_locators_pierce_shadow_roots(web, site):
     web.open(site.url("/shadow.html"))
     assert web.text("my-app >>> #hdr") == "Header text"

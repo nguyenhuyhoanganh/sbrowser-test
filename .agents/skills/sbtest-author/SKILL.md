@@ -1,213 +1,162 @@
 ---
 name: sbtest-author
-description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per feature under tests/features, one test file per case) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Playwright web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
+description: Writes and repairs the automated tests of Samsung Internet (Samsung Browser) for Windows in the sbtest repo. Turns test cases (a Confluence or Jira link, pasted text, a table, an export) or a plain request ("write a test that the bookmark panel lists X") into case docs and pytest tests, after checking the real build, and repairs tests, page objects or the browser-UI map that fail on a new build. Use when test cases must be imported, or a test, page object, test data or browser-UI entry must be written, extended or fixed. Running a build and reporting on it is the sbtest-run skill.
 ---
 
-# Creating tests: cases in, stable tests out
+# Writing sbtest tests
 
-Paths: `references/...` and `templates/...` are in this skill's folder
-`.agents/skills/sbtest-author/`; every other path is relative to the repo root. Commands run
-in the repo root.
+Paths are relative to the repo root; `references/` and `templates/` are in
+`.agents/skills/sbtest-author/`. Run every command in the repo root. Where this skill writes
+`python`, type `.venv/Scripts/python.exe` (a bare `python` is another interpreter).
 
-**Never guess a label, selector or behaviour**: look at the real build, then write.
-**Never change an existing test, page object or ui map without asking**: a test that fails,
-a UI that changed - report what you found, ask the user, change code only after a yes.
-Running a whole build and reporting on it is the `sbtest-run` skill, not this one.
+## Rules
 
-## Files of this skill (open one only when a step needs it)
+- Never guess a label, selector or behaviour: check it on the real build first.
+- Never change an existing test, page object or `config/native_ui.yaml` entry without the
+  user's yes: report what you found and ask.
+- Case IDs come from the user or the source and are used exactly as given (any scheme, e.g.
+  `SI-ADD-012`). Never invent, renumber or change one; no ID -> ask.
+- One behaviour per case. Read the feature's case doc `tests/features/<feature>/<feature>.md`
+  first: when a case already covers the behaviour, extend it instead of adding another.
+- Preconditions are prepared as data (`references/writing-tests.md`); only the steps of the
+  case go through the UI.
+- Never `time.sleep`: wait for a condition (`web.wait_*`, a page object's `wait_*`,
+  `web.wait_until`, `native.wait_dialog`).
+- No internet except the Web Store case: pages and data come from `site` and `resources/data/`.
+- Every test runs in its own new browser with a new profile, in any order. Names a test
+  creates use `unique("Name")`.
+- No product selectors, internal URLs, machine paths or UIA criteria in a test: they belong in
+  page objects (`sbtest/pages/`), `config/default.yaml`, `config/native_ui.yaml`. A test may
+  use ids of our local pages (`web.click("#next")`), ui-map keys
+  (`native.click("bookmarks_button")`) and labels the case names (`native.menu("Add-ons")`).
+- Never weaken an assertion to make a test pass. The build behaves differently from the case
+  -> keep the test as the case says and report the difference with the evidence paths.
+- Not automatable (real account, hardware, another application) -> write
+  `- Automated: no (<reason>)` under the case.
 
-| file | what it is for |
+**web or native.** A step inside a page (internal pages included) uses `web` and page objects.
+A step on the browser frame, toolbar, address bar, menus, bubbles, shortcuts (Ctrl+D/H/J),
+Windows dialogs or File Explorer uses `native`. Case `Type`: `web` = only `web` steps,
+`native` = only `native` steps, `mixed` = both. `Type: native` or `mixed` <->
+`@pytest.mark.native` on the test; `Type: web` <-> no such marker.
+
+## Files (open one when a step needs it)
+
+| file | content |
 |---|---|
-| `references/case-format.md` | where a case doc and its test file go, their names, IDs, the case format, `_inbox/` |
-| `references/action-catalog.md` | a case step -> the call that does it (pages, toolbar, bubbles, dialogs, files, asserts) |
-| `references/feature-notes.md` | the product's traps, per feature - the only place they are written |
-| `references/writing-tests.md` | shape of a test, fixtures, markers, imports; preconditions as data (seeds, prefs, add-ons, local site, files, profiles) |
-| `references/web-api.md` | `web` (Playwright): locators, Shadow DOM, waits, clicks / typing / drag, tabs, frames, JS dialogs |
-| `references/native-ui.md` | `native`: the ui map, toolbar, address bar, menus, bubbles, Save As / Open dialogs, Explorer, shortcuts |
-| `references/page-objects.md` | adding or changing a page object (`sbtest/pages/`) |
-| `references/debugging.md` | the exploring tools (`dom`, `uia_dump`), evidence of a run, typical failures, a page or UI changed after a merge |
-| `templates/test_template.py` | starting point of a new test file |
-| `templates/explore_template.py` | starting point of a scratch exploration test |
+| `references/case-format.md` | file names of case docs and tests, IDs, the format of a case |
+| `references/writing-tests.md` | test shape, fixtures, markers, preconditions, local site pages, data files |
+| `references/action-catalog.md` | a case step -> the call that performs it |
+| `references/feature-notes.md` | how each feature of the product behaves, and known problems |
+| `references/web-api.md` | `web`: locators, waits, actions, reading, tabs, JS dialogs |
+| `references/native-ui.md` | `native`: ui map, shortcuts, menus, bubbles, Windows dialogs |
+| `references/page-objects.md` | adding or changing a page object |
+| `references/debugging.md` | exploration tools, evidence of a run, frequent errors, changed UI |
+| `templates/explore_template.py` | start of a scratch exploration test |
 
-```
-- [ ] Start: exe path confirmed, setup READY, user told about mouse and keyboard
-- [ ] workflow picked, its inputs complete
-```
+## Start (before any workflow)
 
-Begin a workflow only when both are ticked. The Start question and the workflow questions
-can go in one message.
+Ask in the user's language and wait for each answer; never ask again for what the user gave.
 
-## Start: exe path and setup
+1. **Exe path.** The user gave one -> use it. Else `config/local.yaml` has `browser.exe` -> show
+   it and ask the user to confirm it or give another. Else ask for the full path of the
+   build's `SamsungInternet.exe`.
+2. **Setup** (Windows only; on another OS stop and say so), in PowerShell or Git Bash:
+   `./setup.bat --exe "<path>" --save`. It creates `.venv`, saves the exe as the default of
+   all later commands and checks the machine. Its verdict line (above the "Next" commands)
+   decides: **READY** -> continue (list the WARN lines in the final report); **NOT READY** ->
+   apply the `fix:` line under each `[FAIL]`, run setup again.
+3. **Tell the user** that the tests use the real mouse and keyboard: the desktop must stay
+   unlocked, and nobody may use the mouse or keyboard while tests run.
 
-The same in `sbtest-author` and `sbtest-run`. Ask in the user's language (use your agent's
-question tool when it has one) and **wait for each answer**; never guess a path. Never ask
-again for what the user already gave.
+## Choose the workflow
 
-1. **Exe path.** `config/local.yaml` has `browser.exe` -> show that path and ask the user to
-   confirm it or give another. Otherwise (also when the user says "this build" without a
-   path) ask for the full path of the build's `SamsungInternet.exe` (the file name's case
-   does not matter).
-2. **Setup** (Windows only; on another OS stop and tell the user). In the repo root:
-
-   | shell | command |
-   |---|---|
-   | PowerShell, cmd | `.\setup.bat --exe "<path>" --save` |
-   | Git Bash | `./setup.bat --exe "<path>" --save` |
-
-   It creates `.venv`, installs the packages, saves the exe in `config/local.yaml` as the
-   default of every later command and checks the machine. The last
-   line decides:
-   - **READY** (with or without WARN lines) -> go on; leave WARN lines as they are (do not
-     close the user's programs) and tell the user about them in the final answer.
-   - **NOT READY** -> each `[FAIL]` line is followed by a `fix:` line: apply it, run setup
-     again. Never go on with NOT READY.
-
-   The "Next" commands setup prints are only examples. Later in the same session, after a
-   change to the machine: `python -m sbtest.tools.doctor`.
-3. **Tell the user** that tests drive the real mouse and keyboard: keep the Windows desktop
-   unlocked and visible, hands off while a test runs.
-
-`python` in every command means the repo's Python: `.\.venv\Scripts\python.exe`
-(PowerShell), `.venv\Scripts\python` (cmd), `.venv/Scripts/python.exe` (Git Bash).
-
-## Pick the workflow
-
-Ask for what is missing:
-
-| The user gives | Workflow | Ask for (only what is missing) |
+| the user gives | workflow | ask for, when missing |
 |---|---|---|
-| test cases as a Confluence/Jira link, pasted text, a table, an export | A, then B per case | the source (a link but no Confluence/Jira skill available -> ask the user to paste the content); the feature when the source does not say |
-| a case ID, or a plain request ("write a test for ...", "check that ...") | B | the case ID (the team's - never invent one); for a new case also its steps, expected result and feature |
-| a test that broke ("<ID> fails on the new build") | C | the case ID or test name; the error message if the user has one |
+| complete cases from a source: a Confluence/Jira link, pasted case text, a table, an export | A, then B for each case | the content (a link but no Confluence/Jira tool -> ask the user to paste it); the feature when the source does not say |
+| a request without a complete case: an ID of a case already in a case doc, or "write a test for ..." | B | the case ID; for a new case also its steps, expected result and feature |
+| a failing test ("<ID> fails on the new build") | C | the case ID or the test name |
 
-## Hard rules (every workflow)
+## A. Import cases
 
-- **IDs come from the team** (any scheme, e.g. `SI-ADD-012`): use them as given; never invent,
-  renumber or change one. No ID -> ask the user.
-- **One behaviour per case.** Before adding a case, read the feature's case doc
-  (`tests/features/<feature>/<feature>.md`). An existing case that covers the behaviour is extended,
-  or its test reused, instead of adding a near-duplicate.
-- Preconditions as data (`@pytest.mark.browser(bookmarks=..., prefs=..., extensions=[...])`,
-  visited local pages); only the step under test goes through the UI.
-- No `time.sleep`: wait for a condition (`web.wait_*`, page `wait_*`, `web.wait_until`,
-  `native.element(..., timeout)`).
-- No internet except the Web Store case. Pages and data come from `site` / `resources/data/`.
-- Tests are independent (any order, any subset, fresh profile). Names a test creates use
-  `unique("Name")`.
-- Tests contain no product selectors, URLs (`internet://`), machine paths or UIA criteria:
-  those go to page objects (`sbtest/pages/`), `config/default.yaml`, `config/native_ui.yaml`.
-  Allowed in tests: ids of our own local pages (`resources/site`, e.g. `web.click("#next")`)
-  and of the sample add-on (`auto_id="count"`), ui-map names (`native.click("bookmarks_button")`)
-  and labels the user reads in the case (`native.menu("Add-ons")`, `dlg.click("Remove")`).
-- Never weaken an assertion to pass. The product behaves differently from the case -> leave
-  the test as the case says and report the difference with the evidence paths.
-- Not automatable (real account, hardware, external apps, a prompt the web layer cannot see) ->
-  `- Automated: no (<reason>)` under the case and in your report.
-
-**web or native?** Inside the page (internal pages too) -> `web` / page objects. Browser
-frame, toolbar, address bar, menus, bubbles, shortcuts (Ctrl+D/H/J...), Windows dialogs,
-Explorer, real mouse -> `native`. The case's `Type` and the test agree: `native` or `mixed`
-<-> `@pytest.mark.native`, `web` <-> no marker (`coverage` lists every mismatch).
-
-## A. Intake: source -> case docs
-
-1. Read the source: a Confluence page / Jira issue with the **managing-jira-confluence** skill
-   (child pages or attachments too when the user says so); pasted text or a file as is. Save
-   it as Markdown, tables kept, to `tests/features/_inbox/<page title>.md`, the source link on
-   the first line.
-2. Write each case into its case doc - which file, its name and the format of a case:
-   `references/case-format.md` (read it). The source's ID goes in the heading, with
-   `- Source: <link> (section/row)`; steps, Expected and Precondition as that reference says.
-3. `python -m sbtest.tools.coverage --feature <feature>` lists the cases without a test.
-   Automate them with B, one case at a time.
+1. Save the source as Markdown (tables kept) to `tests/features/_inbox/<source title>.md`
+   (no title: the first case's ID and title), with its link on the first line (pasted text:
+   "Pasted by the user"). Read a Confluence page
+   or Jira issue with the Confluence/Jira skill or tool the agent has.
+2. Write each case into its feature's case doc in the format of `references/case-format.md`
+   (create the folder and the case doc when the feature has none yet).
+3. Automate the cases one at a time with B.
 
 ## B. Write a test
 
+Copy this checklist into your reply and tick it off:
+
 ```
-- [ ] 1 case written (or an existing case extended)
-- [ ] 2 UI explored, screenshots read
+- [ ] 1 case written in its case doc
+- [ ] 2 feature notes read; UI checked on the build where a label or behaviour was unknown
 - [ ] 3 every step mapped to a call
 - [ ] 4 test written
-- [ ] 5 --repeat 4 green, step pictures right, feature green, case + coverage updated
+- [ ] 5 4 runs passed, step pictures correct, feature run passed, case marked Automated
 ```
 
-1. **Case.** Write the request as a case in its case doc: ID, title, Type, Precondition,
-   numbered Steps, Expected (observable facts); Priority only when the user or the source
-   gives one. Which doc, its name and the format: `references/case-format.md`. Mark the test
-   `@pytest.mark.sanity` only when the user or the source says the case is part of the sanity
-   pass.
-2. **Explore** what the case touches, on the real build (the commands use the saved exe):
-   - Read the feature's section of `references/feature-notes.md` (known traps).
-   - Every step has a row in `references/action-catalog.md` and every label it needs is named
-     there or in feature-notes -> no scratch test: at most one look at an internal page with
-     `python -m sbtest.tools.dom <page> --aria` (what the page offers: roles and names) or
-     `--interactive` (the locators; with data, and the other tools:
-     `references/debugging.md`, "Exploring"); the step pictures of B5b confirm the rest.
-   - Otherwise (a step with no row, a label nobody wrote down, an unknown bubble or dialog) ->
-     a scratch test: copy `templates/explore_template.py` to
-     `tests/_scratch/test_explore_<topic>.py`, edit, run
-     `python -m pytest tests/_scratch/test_explore_<topic>.py -s -p no:cacheprovider`.
-     `x.snap(label)` saves `artifacts/explore/<topic>/NN_label.png` + `.dom.txt` + `.aria.yaml` + `.uia.txt`;
-     `x.try_step(label, fn)` goes on after errors; `x.find_native("(?i)text")` /
-     `x.find_web("text")` print exact names and locators.
-   - **Open the screenshots and look at them**: a toast instead of a bubble, a new tab instead
-     of the same tab, a label that differs from the case.
-   - Record what you learned in the page object docstring, the ui-map comment and the
-     feature's section of `references/feature-notes.md`. Delete the scratch test.
-3. **Map** each step to a call with `references/action-catalog.md`. No row fits -> add a
-   page-object method (`sbtest/pages/*.py`, `references/page-objects.md`) or a ui-map entry
-   (`config/native_ui.yaml`, `references/native-ui.md`), then a row to the catalogue.
-4. **Write** the test in its own file `tests/features/<feature>/test_<id>.py`
-   (`references/case-format.md`), started from `templates/test_template.py`. Shape, fixtures, markers and
-   preconditions as data: `references/writing-tests.md` - each case step =
-   `with step("N. ...", expected="..."):`, the case's Expected = assertions on state.
-5. **Prove it.** Each run empties `artifacts/test-results/` first: look at a run's evidence
-   before starting the next one. `<test folder>` below = the test's node id with `/` and `::`
-   turned into `_` (`tests_features_<feature>_test_<id>.py_<test name>`).
-   a. `python run.py --case <ID> --repeat 4`: it ends with "all 4 runs passed", or stops at
-      the first failing run with its evidence kept -> read
-      `artifacts/test-results/failures/<test folder>/failure.txt`, then `screen.png` /
-      `page.png`, fix, run `--repeat 4` again.
-   b. `python run.py --case <ID> --screenshot-steps`, then open
-      `artifacts/test-results/steps/<test folder>/`: each `NN-I_<kind>.jpg` frames the element
-      a step is about to touch - it must be the right one (a wrong one shows even when green).
-   c. `python run.py --feature <feature>`: all green.
-   d. Under the case add `- Automated: tests/features/<feature>/test_<id>.py::<test name>`, then
-      run `python -m sbtest.tools.coverage --feature <feature>` (the case shows OK, no
-      "Type mismatch" line) and `python -m sbtest.tools.case_overview`.
+1. **Case.** Write the case into its case doc: `references/case-format.md`.
+2. **Check the UI** that the case uses, on the real build:
+   - Read the feature's section of `references/feature-notes.md`.
+   - Every step has a row in `references/action-catalog.md`, and every label is written there
+     or in feature-notes (also when the case names it differently) -> no exploration test.
+     At most `python -m sbtest.tools.dom <page> --aria` with the data the page needs
+     (`references/debugging.md`, "Exploration tools").
+   - Otherwise (a step with no row, an unknown label, bubble or dialog): copy
+     `templates/explore_template.py` to `tests/_scratch/test_explore_<topic>.py`, edit it, run
+     `python -m pytest tests/_scratch/test_explore_<topic>.py -s -p no:cacheprovider`, and open
+     the pictures in `artifacts/explore/<topic>/`. Check: a toast or a bubble, a new tab or the
+     same tab, the exact label.
+   - Write what you found out into the feature's section of `references/feature-notes.md`.
+     Delete the scratch file.
+3. **Map** every step to a call with `references/action-catalog.md`. No row fits -> add a
+   page-object method (`references/page-objects.md`) or a ui-map entry
+   (`references/native-ui.md`), then a row in the catalogue.
+4. **Write** `tests/features/<feature>/test_<id>.py` as `references/writing-tests.md` shows.
+   The case doc and the step titles keep the case's wording; the code uses the labels the build
+   shows; the report lists each difference.
+5. **Verify the test.** Each run deletes the previous content of `artifacts/test-results/`:
+   read a run's evidence before the next run. `<test folder>` = the test's node id with `/`
+   and `::` replaced by `_`.
+   1. `python run.py --case <ID> --repeat 4` must end with "all 4 runs passed". A failing run
+      stops it: read `artifacts/test-results/failures/<test folder>/failure.txt`, then
+      `screen.png` and `page.png`; fix the test; run it again.
+   2. `python run.py --case <ID> --screenshot-steps`, then open every `NN-I_<kind>.jpg` in
+      `artifacts/test-results/steps/<test folder>/`. Each one shows, framed in red, the element
+      that interaction I of step NN is about to use. A frame on a wrong element is a bug even
+      when the test passes.
+   3. `python run.py --feature <feature>`: every test passes.
+   4. Add `- Automated: tests/features/<feature>/test_<id>.py::<test name>` under the case.
+      `python -m sbtest.tools.coverage --feature <feature>` must show `OK <ID>` and no
+      "Type mismatch" line; then run `python -m sbtest.tools.case_overview` (it rewrites
+      `tests/features/TESTCASES.md`).
 
-The case's wording is the author's guess at the UI: keep its meaning, use the labels the
-build really shows, and say so in your report.
+## C. Repair a test
 
-## C. Repair a broken test
+1. `python run.py --case <ID>`; read `failure.txt`, `screen.png` and `page.png` of its folder
+   under `artifacts/test-results/failures/` before changing anything.
+2. Give the failure one label:
+   - **regression**: the behaviour differs from the case's Expected, or the browser crashed
+     (`BrowserCrashed`, `Target crashed`) -> report it with the evidence; do not change the
+     test.
+   - **UI changed**: the steps still work but markup, labels or browser UI differ -> report it
+     and ask the user whether to update; after a yes follow
+     `references/debugging.md`, "Changed UI".
+   - **environment**: locked desktop, another window in front -> fix the machine
+     (`python -m sbtest.tools.doctor`), not the test.
+   - **flaky**: passes when run again -> find the missing wait or the list read before it
+     changed.
+3. Write the changed behaviour into `references/feature-notes.md`.
+4. Verify the test as in B5.
 
-1. `python run.py --case <ID>`; read `failure.txt`, `screen.png`, `page.png` before editing
-   anything (what each evidence file holds and typical errors: `references/debugging.md`).
-2. Give it one label (the same labels as the `sbtest-run` skill):
-   - **regression** - the behaviour differs from the case's Expected, or the browser crashed
-     (`BrowserCrashed`, `Target crashed`, `... has been closed`) -> report it with the evidence; leave the test
-     as it is;
-   - **UI changed** - the flow still works, different markup, labels or browser UI -> report
-     it as a change the team has to review and **ask the user** whether to update the test;
-     only on a yes dump the page
-     (`python -m sbtest.tools.dom <page>`) or the browser UI (`python -m sbtest.tools.uia_dump`),
-     fix the page object or `config/native_ui.yaml`; keep method names, parameters and return
-     types (`references/debugging.md`, "When a page or the browser UI changed");
-   - **environment** - locked desktop, another window in front -> fix the
-     machine (`python -m sbtest.tools.doctor`), not the test;
-   - **flaky** - passes when run again -> a race: find the missing wait, stale list read or
-     shared data.
-3. Record the build difference in `references/feature-notes.md` and in the page object's
-   STATUS line.
-4. Prove it as in B5. Many tests broken after a Chromium merge: `references/debugging.md`,
-   "When a page or the browser UI changed".
+## Finish
 
-## Before you finish
-
-Changed any file under `sbtest/` -> `python -m pytest tests/framework -q` must be green
-(`tests/framework/test_live.py` drives a real Chromium headless and is skipped where none is
-installed: `python -m playwright install chromium` once, or `SBTEST_LIVE_EXE=<a Chromium exe>`).
-Report to the user: cases written or changed, the test and its runs (4x green, feature run), new
-page-object methods / ui-map keys / catalogue rows, labels that differ from the case's
-wording, product differences (with evidence paths), cases marked not automatable. Do not
-commit unless the user asks.
+- A file under `sbtest/` changed -> `python -m pytest tests/framework -q` must pass.
+- Report: cases written or changed, each test and its runs (4 runs passed, feature run), new
+  page-object methods, ui-map keys and catalogue rows, labels that differ from the case,
+  product differences with evidence paths, cases marked not automatable, setup's WARN lines.
+- Do not commit unless the user asks.

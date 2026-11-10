@@ -1,80 +1,54 @@
-# run.py, its output and the result folder
+# run.py options, run output, result folder
 
 ## Contents
 
-- Commands
-- What the run prints
-- Result folder `artifacts/test-results/`
-- Tools that read a finished run
+- More run.py options
+- Lines a run prints
+- Result folder
+- Other tools
 
-## Commands
+## More run.py options
+
+The options of SKILL.md steps 1-3 are not repeated here.
 
 ```
-python run.py --all                                # every feature (tests/features)
-python run.py --feature addons,bookmarks           # addons, bookmarks, downloads, history, general
-python run.py --case <ID>,<ID>
-python run.py --sanity                             # quick pass (with --feature: its sanity cases only)
-python run.py --all --reruns 1                     # re-run failures once to separate flakes
-python run.py --all --record                       # a video per test (step caption, framed clicks)
-python run.py --all --screenshot-steps             # picture per interaction (framed) + per step
-python run.py --all --record --share-media all     # share/ gets the video of every case, not only failed
-python run.py --all --no-native                    # skip tests that drive the real mouse/keyboard
-python run.py --feature bookmarks --native         # only tests that use the browser UI (Type native/mixed)
-python run.py --case <ID> --repeat 4               # 4 runs in a row, stops at the first failing one
-python run.py --list                               # cases per feature: [web]/[native]/[mixed], automated or not
-python run.py --feature downloads -- -x -k pause   # raw pytest args after --
-python run.py --case <ID> --raw                    # pytest's own output (tracebacks, logs) to debug
-python run.py --case <ID> --keep-profile           # keep the profile folder to open it by hand
+python run.py --feature bookmarks --native   # only tests that use the browser UI and Windows
+python run.py --all --trace                  # a Playwright trace of each failed test
+python run.py --case <ID> --repeat 4         # 4 runs in a row; stops at the first failing run
+python run.py --list                         # the cases per feature, their Type, automated or not
+python run.py --case <ID> --raw              # pytest's own output (traceback, logs)
+python run.py --exe "<path>" ...             # another build than the saved one
 ```
 
-The build to test is `browser.exe` of `config/local.yaml` (saved by `setup.bat --save`);
-`--exe "<path>"` on a command overrides it. `--share-media failed|all|none` picks which cases
-get their video / step pictures in `share/attachments/` (default `failed`).
+## Lines a run prints
 
-Browser reuse: each test gets a fresh browser by default. `--scope module` reuses one per
-test file (much faster; the tests of a file then share state) - not for the build verdict
-unless the user accepts it. A test with a `browser(...)` marker always gets its own browser.
+One line per test, grouped by feature: `[PASS]`, `[FAIL]`, `[ERR ]`, `[SKIP]` or `[RERUN]`,
+case ID, title, duration, `(start Xs)` = the time spent starting the browser, progress
+(`12/74`). Under a failure: `step:` (the case step that failed), `expected:`, `error:` and
+`evidence:` (the path of its `failure.txt`).
 
-## What the run prints
+## Result folder
 
-One line per test, grouped by feature: `[PASS]` / `[FAIL]` / `[ERR ]` / `[SKIP]`, case id,
-case title, time, `(start Xs)` = the part of it spent starting the browser, progress
-(`12/73`). Under a failure: `step:` (the case step that failed), `expected:`, `error:` (one
-line) and `evidence:` (its `failure.txt`, read it next).
-
-The run ends with the summary: verdict, totals per feature, every failure with its evidence
-path, the report paths, and `browser start: <avg>s (browser, attach, startup bubbles)`
-- which part of the browser start is slow.
-
-## Result folder `artifacts/test-results/`
-
-The folder holds the latest run only: it is emptied when the next run starts. `<test folder>`
-= the test's node id with `/` and `::` turned into `_`
-(e.g. `tests_features_history_test_history.py_test_search_history`).
+`artifacts/test-results/` holds only the latest run. `<test folder>` = the test's node id with
+`/` and `::` replaced by `_`.
 
 | path | content |
-|------|---------|
-| `report/index.html` | **the build's sanity report**: verdict, build info, one row per case (steps, expected, result, screenshot; video and "Step pictures" when taken); the `report/` folder can be zipped and shared |
-| `report/report.md` | same report in Markdown |
-| `share/` | the files to share the run on Confluence or Jira: `manifest.json` (`title`, `attachments`), `page.storage.html` (Confluence page body), `page.md` (same body in Markdown), `attachments/` (flat: `<case>_<test>.jpg` screenshot of every test + `<case>_...` videos / step pictures of the cases chosen with `--share-media`) |
-| `results.json` | every test: outcome, case ids, steps, failed step, error, screenshot, evidence paths, browser start times |
-| `failures/<test folder>/` | `failure.txt` (read first), `page.png` (failing element outlined in red), `screen.png` (browser windows incl. native dialogs), `dom.txt`, `aria.yaml` (accessibility tree of the page), `console.txt` (JS dialogs, console errors), `uia.txt`; `failure.txt` ends with the `trace:` path when a trace was kept |
-| `results/<test folder>.png` | final screenshot of every passed test (used by the report) |
-| `videos/<test folder>.mp4` | `--record`: video of the test body - browser windows (only the current tab in a headless run, where there is no screen to record), the running case step at the bottom, each click / typing framed in red (also played in the report) |
-| `traces/<test folder>.zip` | `--trace` (failed tests) / `--trace all`: Playwright trace - every web action with DOM snapshot, screenshot, console and network; open with `python -m playwright show-trace <zip>` |
-| `steps/<test folder>/` | `--screenshot-steps`: `NN-I_<kind>.jpg` right before each interaction, its target framed in red; `NN_<status>_<step>.jpg` how each step ended (also in the report) |
-| `junit.xml` | JUnit result for CI |
-| `profiles/` | with `--keep-profile`: the browser profile of each test |
+|---|---|
+| `report/index.html` | the report: verdict, build, one row per case (steps, expected, result, screenshot, video or step pictures) |
+| `report/report.md` | the same report in Markdown |
+| `share/manifest.json` | `title` and the list of `attachments` |
+| `share/page.storage.html`, `share/page.md` | the Confluence page body (storage format, Markdown) |
+| `share/attachments/` | `<case>_<test>.jpg`, the final screenshot of every test, plus the videos or step pictures of the cases `--share-media` selected |
+| `failures/<test folder>/` | `failure.txt` (read it first), `screen.png` (browser windows and dialogs), `page.png` (the tab, last element outlined), `aria.yaml` (roles and names of the page), `console.txt` (JS dialogs, console errors), `dom.txt` and `uia.txt` (long: search them) |
+| `results/<test folder>.png` | the final screenshot of each passed test |
+| `videos/<test folder>.mp4` | `--record` |
+| `steps/<test folder>/` | `--screenshot-steps` |
+| `traces/<test folder>.zip` | `--trace`; open with `python -m playwright show-trace <zip>` |
+| `results.json`, `junit.xml` | machine-readable results |
 
-## Tools that read a finished run
+## Other tools
 
 ```
-python -m sbtest.tools.summary              # the run's summary again
-python -m sbtest.tools.summary --markdown   # a result block: verdict + one row per case (Jira description, chat)
-python -m sbtest.tools.summary --json       # the same data as JSON
-python -m sbtest.tools.report               # rebuild report/ and share/ (e.g. after editing case docs)
-python -m sbtest.tools.report --open        # ... and open report/index.html
-python -m sbtest.tools.report --zip         # ... and pack report/ into artifacts/sbtest-report.zip
-python -m sbtest.tools.case_overview        # refresh tests/features/TESTCASES.md (git-ignored) with the latest results
-python -m sbtest.tools.coverage             # which case IDs are automated, missing or orphaned; Type mismatches
+python -m sbtest.tools.doctor                # check the machine again (environment failures)
+python -m sbtest.tools.summary --json        # the summary as JSON
 ```

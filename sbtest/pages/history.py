@@ -1,8 +1,5 @@
 """Samsung history page (internet://history; opened as chrome://history).
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
-ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
-
 How it differs from Chromium:
 - one history-item per entry; the first entry of a day also carries the day header
   ("Today - Tuesday, October 20, 2026") with its own select-all check box (#all-select)
@@ -159,7 +156,7 @@ class HistoryPage(BasePage):
         self.delete_selected()
 
     def clear_history(self, confirm: bool = True) -> None:
-        """Toolbar "Clear history". Samsung 31 clears at once with no confirmation; when a build
+        """Toolbar "Clear history". Samsung clears at once with no confirmation; when a build
         asks, ``confirm`` answers it (False = Cancel)."""
         self.toolbar("Clear history")
         self.answer_dialog_if_open(confirm, ("Clear", "Delete", "Clear history", "OK"))

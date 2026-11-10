@@ -1,121 +1,114 @@
-# Writing a test: shape, fixtures, markers, preconditions
+# Writing a test
 
 ## Contents
 
 - Test shape
 - Fixtures
 - Markers
-- Preconditions as data: `@pytest.mark.browser(...)`
-- Data files `resources/data/<name>.yaml`
-- Local site (`site` fixture)
-- Files, unique values, settings, add-ons, profile templates
+- Preconditions
+- Data files
+- Local site
+- Generated files and the sample add-on
 
 ## Test shape
 
-Which test file: `references/case-format.md`, "Files and names". A new file starts from
-`templates/test_template.py`.
+A new test file starts as a copy of this example:
 
 ```python
-"""<ID> Delete a bookmark and undo. Case: bookmarks.md (the case doc next to this file)"""
+"""BM-004 Delete a bookmark and undo. Case: bookmarks.md"""
 import pytest
 
 from sbtest.steps import step
-from sbtest.utils import unique
 
 
-@pytest.mark.case("<ID>")
-@pytest.mark.browser(bookmarks="seed_basic")      # preconditions as data
+@pytest.mark.case("BM-004")
+@pytest.mark.browser(bookmarks="seed_basic")
 def test_delete_and_undo(pages):
     bm = pages.bookmarks
     with step("1. Open the bookmark manager"):
         bm.open()
-    with step("2. Delete 'Static page 2'", expected="item gone + snack bar"):
+    with step("2. Delete 'Static page 2'", expected="a snack bar '1 bookmark deleted' shows"):
         toast = bm.delete("Static page 2")
         assert "deleted" in toast.lower()
-    with step("3. Undo", expected="item is back"):
+    with step("3. Undo", expected="'Static page 2' is listed again"):
         bm.undo()
         bm.wait_item("Static page 2")
 ```
 
-- One case per file (`test_<id>.py`), one test function in it. Module docstring: the ID, the
-  case title and `Case: <feature>.md`.
-- Test name: `test_<what_it_verifies>` in snake case, not the ID; it always carries
-  `@pytest.mark.case("<ID>")`.
-- Step titles start with the case's step number(s): `"2-3. ..."` when merged, `"2a. ..."` /
-  `"2b. ..."` when one case step is split (a framework test enforces the numbering). Setup
-  that is not a case step (open the page a precondition needs, wait for its state) goes
-  before the first `with step(...)`, in no step - never a step "0.".
-- `expected=` copies the case's Expected for that step; the checks of that Expected go inside
-  the step they verify.
-- Assertions: plain `assert` with a clear left side; for "eventually" use a `wait_*` (it
-  raises with a message), never `assert` + retry loops or `time.sleep`.
-- Check the *result*, not that the click happened: list content, pref value, file on disk,
-  URL / title, text of the snack bar or toast.
-- Act only through `web.*`, `native.*`, page objects and dialog helpers: they record each
-  interaction, so `--screenshot-steps` and `--record` frame it. A raw `click_input()`,
-  `invoke()`, `send_keys` or a Playwright call on `web.page` gets no frame.
-- Keep a test under ~60 s; longer -> `@pytest.mark.slow`.
-- No cleanup of browser data: each test has its own profile. Clean only what you created
-  outside it (files outside `tmp_path` / `downloads_dir`, windows of other apps).
+- Module docstring: the ID, the case title, `Case: <feature>.md`.
+- Test name: `test_<what_it_verifies>`, not the ID.
+- One `with step(...)` per case step, titled with the case's step number and words: `"2. ..."`,
+  `"2-3. ..."` for merged steps, `"2a. ..."` / `"2b. ..."` for a split step (a framework test
+  checks the numbering). Never add a step the case does not have: preparation goes before the
+  first step, and the actions needed to check an Expected (open the manager, read a list) go
+  into the step whose outcome they check.
+- `expected=` goes only on the steps whose outcome a bullet of the case's Expected describes,
+  with the text of those bullets; the assertions of a bullet go into the same step. Steps
+  without such a bullet get no `expected=`.
+- Assert the result (list content, file on disk, URL, title, snack bar or toast text), not that
+  a click happened. For a state that appears later, use a `wait_*` call: it raises with a
+  message when the state does not appear.
+- Act only through `web.*`, `native.*`, page objects and dialog helpers: only these actions are
+  framed in step pictures and videos.
+- No cleanup of browser data. Delete only what the test created outside the profile (files
+  outside `tmp_path` and `downloads_dir`, windows of other applications).
 
-Imports a test may need:
+Imports:
 
 ```python
 import pytest
 from sbtest.steps import step
-from sbtest.utils import unique
-from sbtest.data import files                      # generated files
-from sbtest.web import Keys                       # web.press(Keys.CONTROL, "a")
+from sbtest.utils import unique          # unique("Folder") -> "Folder_1a2b3c"
+from sbtest.data import files            # generated files
+from sbtest.web import Keys              # web.press(Keys.CONTROL, "a")
 ```
 
 ## Fixtures
 
-| fixture | what |
-|---------|------|
-| `web` | `Web` of the current tab: everything inside web content (`references/web-api.md`) |
-| `native` | `NativeBrowser`: the browser's own UI and Windows (`references/native-ui.md`); the test is skipped where native UI cannot work |
-| `pages` | page objects: `pages.bookmarks`, `pages.history`, `pages.downloads`, `pages.extensions`, `pages.webstore`; `pages.of(other_web)` after a restart |
-| `site` | local web server: `site.page("Title")`, `site.url("/upload.html")`, `site.download("a.txt", 2048)` |
-| `session` | `BrowserSession`: `restart()`, `profile`, `info` (Chromium version), `downloads_dir` |
-| `downloads_dir` | download folder of this profile |
-| `data` | `data("addons")` -> `resources/data/addons.yaml` with `{site}` resolved |
-| `cfg` | configuration: `cfg.page_url("history")`, `cfg.display_url("history")` |
-| `tmp_path` | pytest temp folder |
+| fixture | content |
+|---|---|
+| `web` | everything inside web content (`references/web-api.md`) |
+| `native` | the browser's own UI and Windows (`references/native-ui.md`); the test is skipped where native UI is not available |
+| `pages` | page objects: `pages.bookmarks`, `pages.history`, `pages.downloads`, `pages.extensions`, `pages.webstore` |
+| `site` | the local web server (Local site) |
+| `session` | the browser: `session.restart()` (same profile), `session.downloads_dir` |
+| `downloads_dir` | the download folder of this test's profile |
+| `data` | `data("addons")` -> `resources/data/addons.yaml` with `{site}` replaced |
+| `cfg` | settings: `cfg.page_url("history")` (the URL `web.open` takes), `cfg.display_url("history")` (the URL the address bar shows) |
+| `tmp_path` | pytest's temporary folder |
 
 ## Markers
 
-- `@pytest.mark.case("<ID>")` - required on product tests; links the test to its case.
-- `@pytest.mark.native` - any step uses `native`; the case's `Type` is then `native` or
-  `mixed` (`python -m sbtest.tools.coverage` lists a mismatch). `run.py --native` runs only
-  these tests.
-- `@pytest.mark.browser(...)` - preconditions, below.
-- `@pytest.mark.sanity` - only when the user or the source says the case is in the sanity
-  pass; `@pytest.mark.slow` - over ~60 s.
-- The feature marker (`bookmarks`, ...) comes from the folder by itself.
+- `@pytest.mark.case("<ID>")` - required on every test.
+- `@pytest.mark.native` - the case's Type is `native` or `mixed`.
+- `@pytest.mark.sanity` - only when the user or the source says the case is part of the sanity
+  pass.
+- `@pytest.mark.slow` - the test takes more than about 60 s.
+- `@pytest.mark.browser(...)` - preconditions (below).
+- The feature marker is set from the folder.
 
-## Preconditions as data: `@pytest.mark.browser(...)`
+## Preconditions
 
-Preconditions are created **before** the browser starts (profile seeding) or with the cheapest
-reliable action (visiting a local page). Only the behaviour under test goes through the UI.
-Everything is local - no internet.
+| the case says | do |
+|---|---|
+| bookmarks or folders exist | `@pytest.mark.browser(bookmarks="seed_basic")` (a key of `resources/data/bookmarks.yaml`) or `bookmarks={"bookmark_bar": [{"name": "A", "url": "{site}/page?title=A"}]}` |
+| a setting has a value | `@pytest.mark.browser(prefs={"download.prompt_for_download": True})` |
+| an add-on is installed | `@pytest.mark.browser(extensions=["sample_addon"])` (unpacked, from `resources/extensions/`) |
+| the browser starts with a switch | `@pytest.mark.browser(args=["--start-maximized"])` |
+| the browser starts on an internal page | `@pytest.mark.browser(start_page="history")` |
+| pages were visited (history has no seed) | before the first step: `web.open(site.page("Alpha")); web.wait_title("Alpha")` for each page |
+| a file was downloaded | before the first step: `web.open(site.url("/downloads.html")); web.click("#dl-txt"); web.wait_file(downloads_dir, "sample.txt")` |
+| a local file to upload or import | `files.text_file(tmp_path, "a.txt")`, `files.bookmarks_html(tmp_path, [...])` |
 
-```python
-@pytest.mark.browser(bookmarks="seed_basic")                 # key in resources/data/bookmarks.yaml
-@pytest.mark.browser(bookmarks="bookmarks:seed_many")        # explicit file:key
-@pytest.mark.browser(bookmarks={"bookmark_bar": [{"name": "A", "url": "{site}/page?title=A"}]})
-@pytest.mark.browser(prefs={"download.prompt_for_download": True})
-@pytest.mark.browser(extensions=["sample_addon"])             # resources/extensions/<dir>, unpacked
-@pytest.mark.browser(args=["--start-maximized"])              # extra switches
-@pytest.mark.browser(profile="with_passwords")                # copy resources/profiles/<name>/ first
-@pytest.mark.browser(start_page="history")                   # the browser window opens on it (no about:blank, Back off)
-```
+The browser window opens on the test's first page. A test whose first step is a `native` step
+starts on the browser's home page.
 
-A test with `browser(...)` always gets its own fresh browser.
+## Data files
 
-## Data files `resources/data/<name>.yaml`
+`resources/data/bookmarks.yaml`:
 
 ```yaml
-seed_basic:                     # Bookmarks file structure
+seed_basic:
   bookmark_bar:
     - {name: Static page 1, url: "{site}/pages/page1.html"}
     - name: Work
@@ -126,59 +119,44 @@ seed_basic:                     # Bookmarks file structure
 new_bookmark: {name: My new bookmark, url: "{site}/page?title=New"}
 ```
 
-`{site}` becomes the local server's base URL. Roots: `bookmark_bar`, `other`, `synced`. In a
-test: `data("bookmarks")["new_bookmark"]["url"]`. Need another set -> add a key to the file.
+`{site}` is replaced by the local server's address. Roots: `bookmark_bar`, `other`, `synced`.
+Another set of bookmarks -> add a key. `resources/data/addons.yaml`: `sample` (name, unpacked
+folder) and `webstore` (store id, name).
 
-History has no seed file: visit pages, `web.open(site.page(t)); web.wait_title(t)`.
+## Local site
 
-## Local site (`site` fixture)
-
-| URL | Use |
-|-----|-----|
-| `site.page("Alpha")` | page whose `<title>` and `h1#title` are `Alpha` - unique history / bookmark entries |
-| `site.url("/pages/page1.html")` | static pages 1..3 ("Static page 1".."3") with `#next` links, `#body` paragraph |
-| `site.url("/form.html")` | all form controls + file input, submits multipart to `/upload` |
-| `site.url("/inputs.html")` | text / number / date / range / multi-select / contenteditable / disabled, key log `#last-key` |
-| `site.url("/mouse.html")` | click, double click, page context menu, hover menu, far element |
-| `site.url("/upload.html")` | `#file` input, `#pick` button -> OS Open dialog (`#picked`), `#drop-zone` for Explorer drags (`#dropped`) |
-| `site.url("/dialogs.html")` | alert / confirm / prompt / beforeunload / print (async) / `<dialog>` |
-| `site.url("/dragdrop.html")` | HTML5 DnD, sortable list, mouse drag box |
-| `site.url("/popups.html")` | target=_blank link, window.open, same-tab link |
-| `site.url("/downloads.html")` | `#dl-txt` 2 KB, `#dl-bin` 100 KB, `#dl-slow` 10 MB slow, `#dl-attr` download attribute |
-| `site.url("/frames.html")` | iframe `#inner` with input / button posting to the parent |
-| `site.url("/permissions.html")` | notification and location permission requests |
+| call | page |
+|---|---|
+| `site.page("Alpha")` | a page whose `<title>` and `h1#title` are `Alpha` |
+| `site.url("/pages/page1.html")` | "Static page 1".."3", `#next` link, `#body` paragraph |
+| `site.url("/form.html")` | all form controls and a file input; submits to `/upload` |
+| `site.url("/inputs.html")` | text, number, date, range, multi-select, contenteditable, disabled; the last key in `#last-key` |
+| `site.url("/mouse.html")` | click, double click, context menu, hover menu, far element |
+| `site.url("/upload.html")` | `#file` input, `#pick` opens the Windows Open dialog (`#picked`), `#drop-zone` for files dragged from Explorer (`#dropped`) |
+| `site.url("/dialogs.html")` | alert, confirm, prompt, beforeunload, print, `<dialog>` |
+| `site.url("/dragdrop.html")` | HTML5 drag and drop, sortable list, mouse drag box |
+| `site.url("/popups.html")` | `target=_blank` link, `window.open`, same-tab link |
+| `site.url("/downloads.html")` | `#dl-txt` sample.txt 2 KB, `#dl-bin` data.bin 100 KB, `#dl-png` photo.png, `#dl-slow` slow.bin 10 MB (slow), `#dl-attr` link with a download attribute |
+| `site.url("/frames.html")` | iframe `#inner` |
+| `site.url("/permissions.html")` | notification and location requests |
 | `site.url("/toast.html")` | in-page toast |
-| `site.url("/shadow.html")` | nested custom elements (locator practice) |
-| `site.download("a.pdf", 4096, "application/pdf")` | any attachment |
-| `site.slow_download("big.bin", size, chunk, delay)` | in-progress downloads (pause / cancel) |
-| `site.url("/redirect", to="/page?title=X")` / `site.url("/status", code=404)` | redirects / error pages |
-| `site.url("/basic-auth")` | HTTP sign-in prompt, user `sbtest` / password `sbtest` |
+| `site.download("a.pdf", 4096, "application/pdf")` | a URL that downloads a file |
+| `site.slow_download("big.bin", size, chunk, delay)` | a download that stays in progress |
+| `site.url("/redirect", to="/page?title=X")`, `site.url("/status", code=404)` | redirect, error page |
+| `site.url("/basic-auth")` | HTTP sign-in prompt (user and password `sbtest`) |
 | `site.url("/delayed", ms=1500, text="Ready")` | `#late` appears after a delay |
-| `/echo` (GET / POST form), `/upload` (POST multipart) | the server echoes what it received as JSON |
 
-A new page: an HTML file under `resources/site/` (static) or a route in
-`sbtest/server/local_site.py` (dynamic), with ids on everything a test touches.
+A new page: an HTML file in `resources/site/` with an id on every element a test uses, or a
+route in `sbtest/server/local_site.py`.
 
-## Files, unique values, settings, add-ons, profile templates
+## Generated files and the sample add-on
 
 ```python
-from sbtest.data import files
 files.text_file(tmp_path, "a.txt", "content")
 files.binary_file(tmp_path, "a.bin", 4096)
 files.png_file(tmp_path, "img.png")
-files.bookmarks_html(tmp_path, [("Title", url)])   # Netscape file for "Import bookmarks"
+files.bookmarks_html(tmp_path, [("Title", url)])   # a file for "Import bookmarks"
 ```
 
-- Unique values: `unique("Folder")` -> `Folder_1a2b3c`, for every name a test creates.
-- Settings: a fresh profile has the defaults + `browser.prefs` of `config/default.yaml`; another
-  start state -> `browser(prefs=...)` (pref names: `chrome://prefs-internals` in the browser).
-- Add-ons: `resources/data/addons.yaml` has `sample` (name, unpacked folder) and `webstore`
-  (id, name). Unpacked add-ons live in `resources/extensions/<name>/` (manifest v3);
-  `sample_addon` has a popup, an options page and a content script that sets
-  `<html data-sb-addon="active">` on `http://127.0.0.1/*`. Store installs need internet
-  through the proxy.
-- Profile templates (rare - prefer seeding): a folder `resources/profiles/<name>/` is copied
-  into the fresh profile when a test uses `browser(profile="<name>")`. Make one by running the
-  exe with `--user-data-dir=<that folder>`, preparing the state by hand, closing the browser,
-  then deleting caches (`Default/Cache`, `Default/Code Cache`, `GrShaderCache`,
-  `ShaderCache`, crash dumps).
+`resources/extensions/sample_addon/` (manifest v3) has a popup, an options page and a content
+script that sets `<html data-sb-addon="active">` on `http://127.0.0.1/*`.

@@ -46,6 +46,9 @@ class NavigationMixin:
             # the browser has no window yet: open the first one directly on the page
             self._open_first_window(url, wait and blocking)
             return
+        if self.is_home(self.page):
+            self._leave_home(url, wait and blocking)
+            return
         if blocking and wait and preloaded and url.rstrip("/") == preloaded.rstrip("/") \
                 and self.url.rstrip("/") == url.rstrip("/"):
             # the browser start already sent the first tab here (browser.start_page): no reload
@@ -69,6 +72,20 @@ class NavigationMixin:
         except TimeoutError:   # a URL that only downloads leaves the tab empty: no page to wait for
             log.warning("the new window stayed on about:blank after opening %s (a download?)", url)
             return
+        self.wait_ready()
+
+    def _leave_home(self, url: str, wait: bool) -> None:
+        """Open ``url`` in a tab that shows the home page. Samsung cuts DevTools off a tab that
+        leaves it (a goto would fail): navigate from the page itself, then find the tab again
+        (``session.recover``)."""
+        page = self._page
+        self.run(page.evaluate("u => { setTimeout(() => { location.href = u; }, 0); }", url))
+        poll(lambda: page.is_closed() or not self.is_home(page), self.page_load_timeout, 0.05,
+             f"leave the home page for {url}")
+        self._find_lost()
+        if not wait:
+            return
+        poll(lambda: not self.is_home(self.page), self.page_load_timeout, 0.05, f"open {url}")
         self.wait_ready()
 
     async def _goto(self, url: str) -> None:
@@ -114,6 +131,8 @@ class NavigationMixin:
     @property
     def tabs(self) -> list:
         """The open tabs and popup windows (Playwright pages), oldest first."""
+        if self.has_window:
+            self._find_lost()   # a tab that left the home page is back after a reconnect
         return list(self.context.pages)
 
     def _use(self, page):
@@ -124,7 +143,7 @@ class NavigationMixin:
     def new_tab(self, url: str | None = None):
         if not self.has_window and self._new_window is not None:   # no window yet: this is the first
             self._frames.clear()
-            self._open_first_window(url or "about:blank", True)
+            self._open_first_window(url or self.home_url or "about:blank", True)
             return self.page
         self._use(self.run(self.context.new_page()))
         if url:

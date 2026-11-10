@@ -7,7 +7,7 @@ browser:
   # list and add to it
 
 # pages:
-#   scheme: internet     # only if your build accepts internet:// over DevTools (public 31.0 does not)
+#   scheme: internet     # only if your build accepts internet:// over DevTools (Samsung builds do not)
 
 network:
   # browser_proxy: http://proxy.company.com:8080

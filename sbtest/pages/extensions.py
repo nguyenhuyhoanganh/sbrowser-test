@@ -1,8 +1,5 @@
 """Samsung add-ons page (internet://extensions; opened as chrome://extensions, title "Add-ons").
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
-ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
-
 How it differs from Chromium:
 - "Developer mode" is a si-toggle in the LEFT side bar (#devModeToggle); turning it on shows
   "Load Unpacked", "Pack add-on" and "Update" in the toolbar

@@ -3,7 +3,7 @@
 Fixtures (ask only for what the test needs):
     cfg            merged Config
     site           LocalSite - local deterministic web content
-    session        BrowserSession for this test (fresh profile unless a shared scope is configured)
+    session        BrowserSession for this test (its own browser, fresh profile)
     web            session.web     - everything inside web content
     native         session.native  - browser UI / OS dialogs (test is skipped where unavailable)
     pages          page objects: pages.bookmarks, pages.extensions ...
@@ -49,8 +49,6 @@ def pytest_addoption(parser):
     g = parser.getgroup("sbtest")
     g.addoption("--exe", help="SamsungInternet.exe (overrides browser.exe of the config)")
     g.addoption("--headless", action="store_true", default=None, help="headless (native tests are skipped)")
-    g.addoption("--browser-scope", choices=["function", "module", "session"],
-                help="reuse one browser per module/session for tests without @browser marker")
     g.addoption("--feature", help="comma list: addons,bookmarks,downloads,history,general")
     g.addoption("--case", help="comma list of test case ids, e.g. BM-001,DL-004")
     g.addoption("--keep-profile", action="store_true", default=None, help="keep profile folders for debugging")
@@ -79,7 +77,6 @@ def pytest_configure(config):
     cfg = load_config({
         "browser.exe": config.getoption("--exe"),
         "browser.headless": config.getoption("--headless"),
-        "browser.scope": config.getoption("--browser-scope"),
         "browser.keep_profile": config.getoption("--keep-profile"),
         "report.screenshot_steps": True if config.getoption("--screenshot-steps") else None,
         "report.record_video": True if config.getoption("--record") else None,
@@ -172,7 +169,7 @@ def pytest_collection_finish(session):
 def pytest_report_header(config):
     cfg = config._sb_cfg
     return [f"sbtest: exe={cfg.get('browser.exe') or '<not set>'} "
-            f"headless={cfg.get('browser.headless')} native={cfg.native_enabled} scope={cfg.get('browser.scope')}",
+            f"headless={cfg.get('browser.headless')} native={cfg.native_enabled}",
             f"sbtest: results={config._sb_run_dir}"]
 
 
@@ -200,27 +197,6 @@ def site(cfg):
 def data(site):
     """``data("bookmarks")`` -> dict from resources/data/bookmarks.yaml, ``{site}`` resolved."""
     return lambda name: load_data(name, site)
-
-
-class _Shared:
-    """One reusable session per scope key when browser.scope is module/session."""
-
-    def __init__(self):
-        self.sessions: dict[str, BrowserSession] = {}
-
-    def get(self, key: str, factory) -> BrowserSession:
-        s = self.sessions.get(key)
-        if s is None or not s.alive:
-            s = self.sessions[key] = factory()
-        return s
-
-    def close_except(self, keep: str | None = None) -> None:
-        for k in list(self.sessions):
-            if k != keep:
-                self.sessions.pop(k).stop()
-
-
-_shared = _Shared()
 
 
 def _build_session(cfg, site, request) -> BrowserSession:
@@ -252,23 +228,6 @@ def _build_session(cfg, site, request) -> BrowserSession:
     return session
 
 
-def _reset_shared(s: BrowserSession) -> None:
-    """Leave a shared browser neutral: one tab on about:blank, no dialogs."""
-    try:
-        tabs = s.web.tabs
-        if tabs:   # none when the test opened no page (the browser starts without a window)
-            for tab in tabs[1:]:
-                s.web.run(tab.close())
-            s.web.switch_tab(0)
-            s.web.open("about:blank")
-        del s.web.dialogs[:], s.web.console[:]
-        if s.native:
-            s.native.close_stray_dialogs()
-    except Exception as e:  # noqa: BLE001 - broken session: drop it
-        log.warning("shared session reset failed (%s); restarting", e)
-        s.stop()
-
-
 def _end_trace(s: BrowserSession, request) -> None:
     """Keep the test's Playwright trace when it failed (``report.trace: failed``) or always (``all``)."""
     mode = request.config._sb_cfg.get("report.trace") or "off"
@@ -289,28 +248,17 @@ def _end_trace(s: BrowserSession, request) -> None:
 
 @pytest.fixture
 def session(cfg, site, request):
-    scope = cfg.get("browser.scope", "function")
+    """A fresh browser on a fresh profile for every test (tests never share one: what a test
+    leaves behind - bookmarks, downloads, history, open tabs - must not decide the next)."""
     tracing = (cfg.get("report.trace") or "off") != "off"
-    if scope == "function" or request.node.get_closest_marker("browser"):
-        s = _build_session(cfg, site, request)
-        request.node._sb_session = s
-        if tracing:
-            s.trace_begin(request.node.name)
-        yield s
-        if tracing:
-            _end_trace(s, request)
-        s.stop()
-        return
-    key = "session" if scope == "session" else str(request.node.fspath)
-    _shared.close_except(key)
-    s = _shared.get(key, lambda: _build_session(cfg, site, request))
+    s = _build_session(cfg, site, request)
     request.node._sb_session = s
     if tracing:
         s.trace_begin(request.node.name)
     yield s
     if tracing:
         _end_trace(s, request)
-    _reset_shared(s)
+    s.stop()
 
 
 @pytest.fixture
@@ -394,8 +342,7 @@ def pytest_runtest_makereport(item, call):
     res["duration"] = round(res["duration"] + rep.duration, 2)
     session = getattr(item, "_sb_session", None)
     if rep.when == "setup" and getattr(session, "timings", None):
-        # only the test that started the browser gets them (a shared browser starts once)
-        res["startup"], session.timings = session.timings, {}
+        res["startup"], session.timings = session.timings, {}   # a restart in the test does not count
     if rep.when == "call" and getattr(item, "_sb_video", None):
         res["video"] = str(item._sb_video)
     if rep.when == "call" or (rep.when == "setup" and rep.failed):
@@ -439,7 +386,6 @@ def pytest_runtest_makereport(item, call):
 
 
 def pytest_sessionfinish(session, exitstatus):
-    _shared.close_except(None)
     evidence.flush_pictures()   # step pictures are written in the background
     config = session.config
     if not config._sb_write_results:

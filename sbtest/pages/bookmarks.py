@@ -1,8 +1,5 @@
 """Samsung bookmark manager (internet://bookmarks; opened as chrome://bookmarks).
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
-ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
-
 How it differs from Chromium:
 - rows are selected with a round check box (si-select); Edit / Share / Delete / Select all
   live in the page toolbar and act on the selection (no ⋮ per row)

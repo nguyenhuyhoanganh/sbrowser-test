@@ -68,7 +68,4 @@ trace on a plain headless Chromium (`python -m playwright install chromium` once
 - One place per fact: product behaviour in `references/feature-notes.md`, step -> call in
   `references/action-catalog.md`, settings in `config/default.yaml` comments. Update the one
   place; do not copy it into another file.
-- What was verified where: page objects and feature notes were verified on Samsung Browser
-  31.0.1.40 with the earlier Selenium web layer. The Playwright web layer is verified on plain
-  Chromium only (`test_live.py`). Do not claim more in a STATUS line than a run on the build showed.
 - Do not commit unless the user asks. Never commit `config/local.yaml` or `artifacts/`.

@@ -13,9 +13,9 @@ browser:
   #   start_page set -> on that page right after the start (nothing waits for it to load):
   #                     a `pages` name (history, bookmarks...) or a URL
   #   ""             -> on the page of the test's first web.open / pages.x.open; a native
-  #                     step before any page opens it on about:blank
-  # The home page (newtab) cannot be used (Samsung blocks DevTools there).
-  # Per test: browser(start_page=...).
+  #                     step before any page opens it on the home page (newtab)
+  # Samsung cuts DevTools off a tab that leaves its home page: the framework attaches again
+  # by itself (same tab). Per test: browser(start_page=...).
   start_page: ""
   window_size: [1400, 900]
   # Extra command line switches for the browser.
@@ -39,8 +39,6 @@ browser:
     safebrowsing.enabled: false
     credentials_enable_service: false
     profile.password_manager_enabled: false
-  # function | module | session : how often a fresh browser + profile is created.
-  scope: function
   # Keep the profile folder after the test (debugging).
   keep_profile: false
 

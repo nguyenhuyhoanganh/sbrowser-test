@@ -10,9 +10,6 @@ Samsung rewrote the internal pages with its own component set; compared with ups
     cr-action-menu .dropdown-item si-action-menu, button.si-context-menu-item[role=menuitem]
     cr-checkbox per row           si-select (round check box at the start of each row)
     cr-toggle                     si-toggle
-
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
-ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
 """
 from __future__ import annotations
 

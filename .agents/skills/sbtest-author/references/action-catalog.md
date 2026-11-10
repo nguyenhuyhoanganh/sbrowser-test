@@ -1,157 +1,145 @@
-# Action catalogue - "the request says" -> "the test does"
+# Action catalogue: a case step -> the call
 
-Each row: what a case says -> the call. Fixtures: `references/writing-tests.md`. Logical names
-in quotes (`"bookmarks_button"`) are keys of `config/native_ui.yaml`; `name=` fills their
-`{name}` placeholder. Why a call is needed (focus, toasts, bubbles): `references/feature-notes.md`.
-Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, then a row here.
+Names in quotes (`"bookmarks_button"`) are keys of `config/native_ui.yaml`; `name=` fills
+their `{name}` placeholder. The reason behind a call (focus, toasts, bubbles) is in
+`references/feature-notes.md`. Preconditions: `references/writing-tests.md`. No row fits ->
+add a page-object method or a ui-map entry, then a row here.
 
 ## Contents
 
-- Preconditions (before the browser starts)
 - Pages and navigation
-- Bookmarks - manager page (`pages.bookmarks`)
-- Bookmarks - browser UI (native)
+- Bookmarks manager (`pages.bookmarks`)
+- Bookmarks in the browser UI
 - History (`pages.history`)
-- Downloads (`pages.downloads`, files in `downloads_dir`)
-- Add-ons
+- Downloads (`pages.downloads`)
+- Add-ons (`pages.extensions`)
 - Dialogs, bubbles, files
 - Reading and asserting
 
-## Preconditions (before the browser starts)
-
-| Request / precondition | Do |
-|---|---|
-| "bookmarks A, B and folder Work exist" | `@pytest.mark.browser(bookmarks="seed_basic")` (sets in `resources/data/bookmarks.yaml`; add one if needed) |
-| "add-on X installed" | `@pytest.mark.browser(extensions=["sample_addon"])` (folders in `resources/extensions/`) |
-| a setting already on | `@pytest.mark.browser(prefs={"download.prompt_for_download": True})` |
-| "pages visited" (history) | `web.open(site.page("Alpha")); web.wait_title("Alpha")` per page |
-| "file downloaded" | `web.open(site.url("/downloads.html")); web.click("#dl-txt"); web.wait_file(downloads_dir, "sample.txt")` (`#dl-bin`, `#dl-png`, `#dl-slow`, `#dl-attr`) |
-| a local file to upload / import | `files.text_file(tmp_path, "a.txt")`, `files.png_file(...)`, `files.bookmarks_html(...)` |
-| unique names | `unique("Folder")` |
-| touches browser UI or OS dialogs | `@pytest.mark.native` |
-
 ## Pages and navigation
 
-| Request | Do |
+| the case says | do |
 |---|---|
 | open a web page | `web.open(site.page("Title"))`, `web.open(site.url("/form.html"))` |
-| open Bookmarks / History / Downloads / Add-ons page | `pages.bookmarks.open()` / `pages.history.open()` / `pages.downloads.open()` / `pages.extensions.open()` |
-| type an address in the address bar | `native.navigate("internet://history")` (user-visible scheme works there) |
-| read the address bar | `native.omnibox_text()` (Samsung shows `internet://`; compare with `cfg.display_url("history")`) |
-| back / forward / reload / home | `native.click("back_button")` / `"forward_button"` / `"reload_button"` / `"home_button"` |
-| keyboard shortcut (Ctrl+D/H/J/T/W/L, F5...) | `native.hotkey("^d")` - never `web.press` for browser shortcuts |
+| open Bookmarks / History / Downloads / Add-ons | `pages.bookmarks.open()` / `pages.history.open()` / `pages.downloads.open()` / `pages.extensions.open()` |
+| type an address in the address bar | `native.navigate("internet://history")` |
+| read the address bar | `native.omnibox_text()`; compare with `cfg.display_url("history")` |
+| back / forward / reload / home button | `native.click("back_button")` / `"forward_button"` / `"reload_button"` / `"home_button"` |
+| back / forward inside the test, no button | `web.back()` / `web.forward()` |
+| a browser shortcut (Ctrl+D/H/J/T/W/L, F5) | `native.hotkey("^d")` |
 | Enter / Esc / Ctrl+A inside a page | `web.press("ENTER")`, `web.press(Keys.CONTROL, "a")` |
-| iframe content | `with web.frame("#frame"): ...` |
-| navigation that stops at a browser prompt (HTTP sign-in) | `web.open(url, blocking=False)`, then `native.wait_dialog("http_auth")` |
-| something opens "in a tab" | `web.switch_tab(url=cfg.page_url("history"))` or `web.switch_tab(title="X")` (new tab or same tab) |
-| new tab expected | `before = web.tabs` ... `web.wait_new_tab(before)` |
-| tab opened in the background (extension pages) | `"X" in native.tab_titles()`, then `native.click({"control_type": "TabItem", "title": "X"})`, read with UIA (`native.wait_text("^...$")`) |
+| something opens in a tab | `web.switch_tab(url=cfg.page_url("history"))` or `web.switch_tab(title="X")` |
+| a new tab opens | `before = web.tabs` before the action, then `web.wait_new_tab(before)` |
+| a tab opens in the background (add-on options) | `"X" in native.tab_titles()`, `native.click({"control_type": "TabItem", "title": "X"})`, read it with `native.wait_text("(?i)...")` |
 | app menu > item | `native.menu("Add-ons")`, `native.menu("History", "History")` |
-| restart and check it persisted | `session.restart(); pages.of(session.web).bookmarks.open()` |
+| iframe content | `with web.frame("#inner"): ...` |
+| a navigation that stops at an HTTP sign-in prompt | `web.open(url, blocking=False)`, then `native.wait_dialog("http_auth")` |
+| restart the browser, check it persisted | `session.restart(); bm = pages.of(session.web).bookmarks.open()` |
 
-## Bookmarks - manager page (`pages.bookmarks`)
+## Bookmarks manager (`pages.bookmarks`)
 
-| Request | Do |
+| the case says | do |
 |---|---|
-| list / check an entry | `bm.titles()`, `bm.wait_item("X")`, `bm.wait_item("X", present=False)`, `bm.item_url("X")`, `bm.is_folder("X")` |
-| open a folder | `bm.open_folder("Work")`, root: `bm.open_folder(bm.BAR_FOLDER)`; tree: `bm.folders()` |
-| add a bookmark | `bm.add_bookmark(name, url)` (right ⋮ > Add bookmark, into the open folder) |
-| add a folder | `bm.add_folder(name)` (Create folder + rename in the tree) |
-| edit name / address | `bm.edit("X", name=..., url=...)`, `bm.rename("X", "Y")` (tick + toolbar Edit) |
-| a row's item menu (right-click; cases say "from its item menu") | `bm.item_menu("X", "Edit" / "Delete" / "Open all (2) in new tab")`; after Delete: `bm.wait_toast("deleted")`, `bm.wait_item("X", present=False)` |
-| delete with the toolbar Delete button + snack bar + undo | `toast = bm.delete("X")` ("1 bookmark deleted"), `bm.undo()` |
-| select several / all | `bm.select("A", "B")`, `bm.is_selected("A")`, `bm.select_all()`, `bm.deselect_all()`, `bm.delete_selected()` ("Delete all") |
-| sort / options menu | `bm.sort_by_name()` (folders first, then A-Z), `bm.options("...")` (right ⋮), `bm.organize("...")` (left ⋮) |
-| open all bookmarks of a folder | `bm.open_all()` (Select all + right ⋮ "Open all (n) in new tabs"), `bm.open_all("A", "B", where="new window")` / `where="Secret mode"` - n counts the selected rows |
-| import bookmarks | `bm.open_import()` (left ⋮ > Import bookmarks: Settings import page in a new tab, switched to) |
-| open a bookmark | `bm.open_item("X")` (new tab on Samsung, switched to) |
+| list / check an entry | `bm.titles()`, `bm.wait_item("X")`, `bm.wait_item("X", present=False)`, `bm.is_folder("X")`; address: `bm.item_url("X") == site.url("/pages/page1.html")` (the full URL) |
+| open a folder | `bm.open_folder("Work")`; the bar: `bm.open_folder(bm.BAR_FOLDER)`; the tree: `bm.folders()` |
+| add a bookmark | `bm.add_bookmark(name, url)` (into the open folder) |
+| add a folder | `bm.add_folder(name)` |
+| edit name / address | `bm.edit("X", name=..., url=...)`, `bm.rename("X", "Y")` |
+| a row's right-click menu | `bm.item_menu("X", "Edit")` / `"Delete"` / `"Open all (2) in new tab"`; after Delete: `bm.wait_toast("deleted")` |
+| delete (toolbar) and undo | `toast = bm.delete("X")`, `bm.undo()` |
+| select several / all | `bm.select("A", "B")`, `bm.is_selected("A")`, `bm.select_all()`, `bm.deselect_all()`, `bm.delete_selected()` |
+| sort / menus | `bm.sort_by_name()`, `bm.options("...")` (right ⋮), `bm.organize("...")` (left ⋮) |
+| open all bookmarks of a folder | `bm.open_all()`, `bm.open_all("A", "B", where="new window")` / `where="Secret mode"` |
+| import bookmarks | `bm.open_import()` (Settings import page in a new tab, switched to) |
+| open a bookmark | `bm.open_item("X")` (new tab, switched to) |
 | search | `bm.search("ta")`, `bm.wait_titles([...])` |
-| export to a file | `bm.export(native, tmp_path / "b.html")` (Save As) |
+| export to a file | `bm.export(native, tmp_path / "b.html")` |
 
-## Bookmarks - browser UI (native)
+## Bookmarks in the browser UI
 
-| Request | Do |
+| the case says | do |
 |---|---|
-| Ctrl+D -> toast "Page bookmarked." / "Bookmark added to ..." | `native.hotkey("^d"); toast = native.wait_dialog("bookmark_added")` |
-| toast > Edit -> rename | click Edit at once (the toast closes after a few seconds): `toast.click("Edit")`; `field = native.element("bookmark_edit_name", in_main=False)`, `field.set_focus()`, `native.hotkey("^a", focus=False)`, `native.type_text("New name")`, `native.click("bookmark_edit_save")`; read a field: `native.element("bookmark_edit_url", in_main=False).get_value()` |
-| is the page bookmarked (star) | helper `def star(): native.focus_page(); return native.exists("bookmark_star_filled")`, then `web.wait_until(star)` / `web.wait_until(lambda: not star())` - the star only shows while the page has the focus (feature-notes, Bookmarks) |
-| remove with the star | `native.wait_dialog_gone("bookmark_added")` (after a Ctrl+D), then `native.click("bookmark_star_filled")` |
+| Ctrl+D -> "Page bookmarked." | `native.focus_page(); native.hotkey("^d"); toast = native.wait_dialog("bookmark_added")` |
+| toast Edit -> rename | at once: `toast.click("Edit")`; `field = native.element("bookmark_edit_name", in_main=False)`, `field.set_focus()`, `native.hotkey("^a", focus=False)`, `native.type_text("New name")`, `native.click("bookmark_edit_save")`; read a field: `native.element("bookmark_edit_url", in_main=False).get_value()` |
+| the page is bookmarked (star) | `def star(): native.focus_page(); return native.exists("bookmark_star_filled")`, then `web.wait_until(star)` or `web.wait_until(lambda: not star())` |
+| remove with the star | `native.wait_dialog_gone("bookmark_added")`, then `native.click("bookmark_star_filled")` |
 | Bookmarks panel (toolbar) | `native.click("bookmarks_button")`; folder `native.click("bookmarks_panel_folder", name="Bookmark bar")`; bookmark `native.click("bookmarks_panel_item", name="X")`; buttons `"bookmarks_panel_add_page"`, `"bookmarks_panel_create_folder"`, `"bookmarks_panel_expand"` (opens the manager) |
 
 ## History (`pages.history`)
 
-| Request | Do |
+| the case says | do |
 |---|---|
 | entries, order, details | `h.titles()`, `h.rows()` -> `{title, url, domain, time, day}`, `h.days()` |
 | open an entry | `h.open_item("Alpha")` (same tab) |
 | select / delete / cancel | `h.select("A", "B")`, `h.is_selected("A")`, `h.delete_selected()`, `h.remove("A")`, `h.cancel_selection()` |
-| a row's item menu (right click) | `h.item_menu("A", "Copy link" / "Open all (1) in new tab")`, `h.delete_from_menu("A")`, `h.more_from_site("A")` (the list shows that site only) |
-| delete a day | `h.delete_day(0)` (day header check box + Delete; 0 = newest day), or `h.select_day(0)` + `h.delete_selected()` |
-| clear history | `h.clear_history()` (no confirmation on Samsung 31) |
-| clear browsing data | `h.open_clear_browsing_data()` (Settings in a new tab, switched to) |
-| time filter (check boxes, add up) | `h.filter_time("Last hour")`, `h.filter_time("Yesterday", "Today")`, `h.time_filters()` |
-| search | `h.search("Gam")`, `h.wait_titles(["Gamma"])`; empty: `web.wait_until(h.is_empty)` |
+| a row's right-click menu | `h.item_menu("A", "Copy link")`, `h.delete_from_menu("A")`, `h.more_from_site("A")` |
+| delete a day | `h.delete_day(0)` (0 = newest), or `h.select_day(0)` + `h.delete_selected()` |
+| clear history | `h.clear_history()` |
+| clear browsing data link | `h.open_clear_browsing_data()` (new tab, switched to) |
+| time filter | `h.filter_time("Last hour")`, `h.filter_time("Yesterday", "Today")`, `h.time_filters()` |
+| search | `h.search("Gam")`, `h.wait_titles(["Gamma"])`; nothing found: `web.wait_until(h.is_empty)` |
 | toolbar button state | `h.toolbar_enabled("Delete")` |
+| Ctrl+H | `native.hotkey("^h")`, `web.switch_tab(url=cfg.page_url("history"))` |
 
-## Downloads (`pages.downloads`, files in `downloads_dir`)
+## Downloads (`pages.downloads`)
 
-| Request | Do |
+| the case says | do |
 |---|---|
 | row details | `d.wait_complete("x")` -> `{name, url, size, description, tag, in_progress}`, `d.names()` |
 | file on disk | `web.wait_file(downloads_dir, "x")` |
-| pause / resume / cancel | `d.pause("slow.bin")`, `d.resume("slow.bin")`, `toast = d.cancel("slow.bin")` (row gone, "... removed from Downloads."); `d.status("slow.bin")`, `d.wait_status("slow.bin", "Paused")` |
-| which buttons a row shows | `d.row_buttons("x")` -> `["Pause", "Cancel"]` in progress, `["Copy link", "Show in folder", "Remove x from download history"]` finished |
-| remove + undo | `d.remove("x")`, `d.toast_action("Undo")` |
-| clear the list ("Clear all" = toolbar "Clear download history") | `native.close_download_bubble()` if a download just finished (feature-notes, Downloads), then `d.clear_all()` |
-| category / search | `d.filter_category("Image")`, `d.search("data")` |
-| copy link | `d.copy_link("x")` + `pywinauto.clipboard.GetData()` |
-| show in folder | `d.show_in_folder("x")`, `native.wait_explorer(downloads_dir.name)`, `native.explorer_has_selected(win, "x")` |
-| toolbar download bubble | `native.element("download_bubble_item", title_re=r"^x ")` -> name "x 2,048 B • Done" |
-| ask where to save | prefs `download.prompt_for_download` + `native.file_dialog("save").save_as(path)` |
+| pause / resume / cancel | `d.pause("slow.bin")`, `d.resume("slow.bin")`, `toast = d.cancel("slow.bin")`; `d.status("slow.bin")`, `d.wait_status("slow.bin", "Paused")` |
+| the buttons of a row | `d.row_buttons("x")` |
+| remove and undo | `d.remove("x")`; snack bar text: `d.wait_toast("removed")`; then `d.toast_action("Undo")`, `d.wait_item("x")` |
+| clear the list ("Clear all") | `native.close_download_bubble()` after a fresh download, then `d.clear_all()` |
+| category / search | `d.filter_category("Image")`, `d.search("ta.bin")` |
+| copy link | `d.copy_link("x")`, then read the clipboard (Reading and asserting) |
+| show in folder | `d.show_in_folder("x")`, `win = native.wait_explorer(downloads_dir.name)`, `native.explorer_has_selected(win, "x")`, `win.close()` |
+| the toolbar Downloads bubble | `native.element("download_bubble_item", title_re=r"^x ")` (name "x 2,048 B • Done") |
+| ask where to save | `browser(prefs={"download.prompt_for_download": True})`, `native.file_dialog("save").save_as(path)` |
+| Ctrl+J | `native.hotkey("^j")`, `web.switch_tab(url=cfg.page_url("downloads"))` |
 
-## Add-ons
+## Add-ons (`pages.extensions`)
 
-| Request | Do |
+| the case says | do |
 |---|---|
 | card / state | `e = pages.extensions.open()`, `e.names()`, `e.item("X")`, `e.is_enabled("X")`, `e.info()` (id, version, state) |
-| turn on/off | `e.set_enabled("X", False)` |
-| reload / update (developer mode) | `e.reload("X")` (card Reload icon), `e.update()` (toolbar Update) |
-| add-on works on a page | sample add-on marks pages: `web.js("return document.documentElement.getAttribute('data-sb-addon')") == "active"` |
-| developer mode / tools | `e.set_dev_mode(True)`, `e.dev_toolbar()` -> Load Unpacked, Pack add-on, Update |
+| turn on / off | `e.set_enabled("X", False)` |
+| the add-on works on a page | `web.js("return document.documentElement.getAttribute('data-sb-addon')") == "active"` |
+| developer mode | `e.set_dev_mode(True)`, `e.dev_toolbar()`, `e.reload("X")`, `e.update()` |
 | details / shortcuts | `e.open_details("X")`, `e.open_shortcuts()`, `e.shortcuts()` |
-| remove (+ cancel) | `e.remove("X", native)` / `e.remove("X", native, confirm=False)` (card Remove -> "Delete X?" -> Remove / Cancel, waits until gone / still there); to check the prompt itself: `e.click_remove("X")`, `dlg = native.wait_dialog("remove_extension")`, `dlg.texts()`, `dlg.click("Remove" / "Cancel")` |
-| install: unpacked / store | `e.load_unpacked(native, folder)`, `pages.webstore.install(id, native)` (free add-ons only) |
+| remove (or cancel) | `e.remove("X", native)` / `e.remove("X", native, confirm=False)`; the prompt itself: `e.click_remove("X")`, `dlg = native.wait_dialog("remove_extension")`, `dlg.texts()`, `dlg.click("Remove")` |
+| install unpacked / from the store | `e.load_unpacked(native, folder)`, `pages.webstore.install(store_id, native)` |
 | pack | `e.open_pack_dialog()`, `e.pack_inputs()`, `e.pack_button_enabled()`, `e.pack(folder)` |
-| store link | `e.get_addons()` (new tab, Chrome Web Store) |
-| toolbar Add-ons menu | `native.click("extensions_button")`; pin `native.click("addons_menu_pin", name="X")`, unpin `"addons_menu_unpin"`, more `"addons_menu_more"` + `native.menu_items()` / `native.select_menu_items("Options")` |
-| pinned icon -> popup | `native.click("extension_action", name="X")`; popup content via UIA: `native.element({"auto_id": "count"}, in_main=False)` |
+| "Get add-ons" link | `e.get_addons()` (new tab, switched to) |
+| toolbar Add-ons menu | `native.click("extensions_button")`; `native.click("addons_menu_pin", name="X")`, `"addons_menu_unpin"`, `"addons_menu_more"`, then `native.menu_items()` / `native.select_menu_items("Options")` |
+| pinned icon -> popup | `native.click("extension_action", name="X")`; popup content: `native.element({"auto_id": "count"}, in_main=False)` |
 
 ## Dialogs, bubbles, files
 
-| Request | Do |
+| the case says | do |
 |---|---|
-| a browser bubble / prompt | `dlg = native.wait_dialog("<ui-map dialogs key>" or "(?i)regex")` -> `.texts()`, `.click("Label")`, `.click_any("A", "B")`, `.wait_closed()` |
-| wait until a bubble / toast is gone | `native.wait_dialog_gone("bookmark_added")` |
-| dialog inside an internal page | `page.open_dialog()`, `page.dialog_text()`, `page.dialog_input("name")`, `page.dialog_button("Save")` |
-| upload through Windows Open | `web.click(button)`, `native.file_dialog("open").open(f1, f2)` |
-| upload through `<input type=file>` | `web.upload(loc, path)` (no OS dialog) |
+| a browser bubble or prompt | `dlg = native.wait_dialog("<dialogs key>" or "(?i)regex")`, `dlg.texts()`, `dlg.click("Label")`, `dlg.click_any("A", "B")`, `dlg.wait_closed()` |
+| a bubble or toast is gone | `native.wait_dialog_gone("bookmark_added")` |
+| a dialog inside an internal page | `page.open_dialog()`, `page.dialog_text()`, `page.dialog_input("name")`, `page.dialog_button("Save")` |
+| upload through the Windows Open dialog | `web.click("#pick")`, `native.file_dialog("open").open(f1, f2)` |
+| upload through `<input type=file>` | `web.upload("#file", path)` |
 | Save As | `native.file_dialog("save").save_as(path)` |
 | choose a folder | `native.file_dialog("open").select_folder(path)` |
 | drag a file from Explorer | `native.drag_file_from_explorer(path, web=web, target="#drop-zone")` |
-| JS alert / confirm / prompt | `with web.dialog(accept=True, prompt_text=...) as d:` around the action that opens it (`accept=False` = Cancel), then `d.text` |
-| "Leave site?" (beforeunload) | `with web.dialog(accept=False) as d:` around the navigation (`web.open(url, blocking=False)`), `d.type == "beforeunload"` (feature-notes, General) |
-| drag & drop inside a page | `web.drag_and_drop(a, b, method="html5" / "actions" / "native")` |
-| Windows notification | `native.wait_os_toast("(?i)text")` |
-| print preview | `native.wait_dialog("print")`, `.press("{ESC}")` (the page is blocked meanwhile: no `web.*`) |
-| right-click on a page / link | `native.context_menu_web(web, "#next", "Open in new tab")` (Samsung's labels: feature-notes, General) |
+| JS alert / confirm / prompt | `with web.dialog(accept=True, prompt_text="x") as d:` around the action, then `d.text` |
+| "Leave site?" | `with web.dialog(accept=False) as d: web.open(url, blocking=False)`, then `d.type == "beforeunload"` |
+| drag and drop in a page | `web.drag_and_drop(a, b, method="html5")` / `"actions"` / `"native"` |
+| a Windows notification | `native.wait_os_toast("(?i)text")` |
+| print preview | `native.wait_dialog("print")`, `.press("{ESC}")` (no `web.*` while it is open) |
+| right-click a link -> menu item | `native.context_menu_web(web, "#next", "Open in new tab")` |
 
 ## Reading and asserting
 
-| Request | Do |
+| the case says | do |
 |---|---|
 | text on a page | `web.text(loc)`, `web.wait_text(loc, "x")`, `web.wait_page_text("x")` |
+| snack bar of an internal page | `text = page.wait_toast("deleted")` (waits for a snack bar containing the text, returns its text), `page.toast_action("Undo")` |
 | element state | `web.exists(loc)`, `web.is_checked(loc)`, `web.is_enabled(loc)`, `web.attr(loc, "x")` |
-| any text in the browser UI | `native.wait_text("(?i)regex")`, `native.exists("<key>")` |
-| wait for something | `web.wait_until(lambda: ..., message="what we wait for")` |
-| clipboard text (after Copy link / copy) | `from pywinauto import clipboard`; `clipboard.EmptyClipboard()` before the copy, then `web.wait_until(lambda: clip() == site.url("/pages/page2.html"))` where `clip()` returns `clipboard.GetData()` or `""` on an exception (empty clipboard raises); a copied link is the absolute URL |
-| step + expected for the report | `with step("2. Do X", expected="Y happens"):` |
+| text in the browser UI | `native.wait_text("(?i)regex")`, `native.exists("<key>")` |
+| wait for anything | `web.wait_until(lambda: ..., message="what is awaited")` |
+| clipboard | `from pywinauto import clipboard`; `clipboard.EmptyClipboard()` before the copy; then `web.wait_until(lambda: clip() == expected)` with `clip()` returning `clipboard.GetData()`, or `""` when it raises (empty clipboard) |

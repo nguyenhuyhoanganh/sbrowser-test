@@ -50,7 +50,6 @@ def main(argv: list[str] | None = None) -> int:
     native.add_argument("--native", action="store_true", help="only tests that drive the browser UI / Windows (native)")
     native.add_argument("--no-native", action="store_true", help="skip tests that drive native UI")
     p.add_argument("--headless", action="store_true", help="headless browser (implies --no-native)")
-    p.add_argument("--scope", choices=["function", "module", "session"], help="browser reuse scope")
     p.add_argument("--reruns", type=int, default=0, help="re-run failed tests N times (separate flakes)")
     p.add_argument("--keep-profile", action="store_true", help="keep profile folders")
     p.add_argument("--screenshot-steps", action="store_true",
@@ -83,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     pargs = [str(ROOT / "tests" / "features"), f"--junitxml={run_dir / 'junit.xml'}",
               "-p", "no:cacheprovider"]
     for flag, value in (("--exe", args.exe), ("--feature", args.feature), ("--pw-trace", args.trace),
-                        ("--case", args.case), ("--browser-scope", args.scope),
+                        ("--case", args.case),
                         ("--share-media", args.share_media)):
         if value:
             pargs += [flag, value]

@@ -1,8 +1,5 @@
 """Samsung downloads page (internet://downloads; opened as chrome://downloads).
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
-ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
-
 How it differs from Chromium:
 - left side bar: search + category filter (All, Image, Video, Audio, Document, Others)
 - a finished row: name, size, source link and icon buttons "Copy link", "Show in folder"
@@ -14,7 +11,6 @@ How it differs from Chromium:
 """
 from __future__ import annotations
 
-import time
 
 
 from sbtest.pages.base import BasePage
@@ -61,8 +57,8 @@ class DownloadsPage(BasePage):
 
     def item(self, name: str, timeout: float | None = None) -> Element:
         """The row of file ``name``. The list reuses its row elements when it re-renders (a
-        download added, removed, restored): a row counts once it shows ``name`` on two reads
-        in a row, so an action never lands on a row that just changed."""
+        download added, removed, restored): a row counts once it shows ``name`` on two
+        consecutive polls of the wait, so an action never uses a row that just changed."""
         seen = {}
 
         def _f():
@@ -71,8 +67,7 @@ class DownloadsPage(BasePage):
                     if seen.get("row") is not None and self.web.same_element(seen["row"], i):
                         return i
                     seen["row"] = i
-                    time.sleep(0.2)
-                    return None
+                    return None   # the next poll reads it again
             seen.clear()
             return None
         return self.web.wait_until(_f, timeout, f"download item {name!r}")

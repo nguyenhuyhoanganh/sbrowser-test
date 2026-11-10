@@ -12,15 +12,17 @@ We start the exe ourselves with ``--remote-debugging-port`` and Playwright attac
 the DevTools protocol (``connect_over_cdp``): the browser is the real build with its real UI,
 no driver binary has to match its Chromium version. It starts without a window; the first
 window opens directly on a page: the start page (``browser.start_page``) right after the
-start, else the page of the test's first ``web.open`` (a native step before it: about:blank).
+start, else the page of the test's first ``web.open`` (a native step before it: the home page).
 """
 from __future__ import annotations
 
 import asyncio
 import os
 import subprocess
+import threading
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import psutil
 
@@ -29,7 +31,9 @@ from sbtest.browser.runtime import runtime
 from sbtest.browser.version import chromium_version_from, wait_devtools_port
 from sbtest.config import Config
 from sbtest.utils import find_browser_pid, kill_tree, log, poll
-from sbtest.web.web import Web
+
+if TYPE_CHECKING:   # sbtest.web imports the runtime of this package: import Web only when used
+    from sbtest.web.web import Web
 
 
 def merge_feature_switches(args: list[str]) -> list[str]:
@@ -82,6 +86,8 @@ class BrowserSession:
         #: called (no arguments) right after ``new_window`` opened a window, e.g. by the video
         #: recorder, which starts with the browser's first window
         self.window_opened: list = []
+        self._targets: dict = {}               # Playwright page -> DevTools target id
+        self._recover_lock = threading.RLock()
 
     # -- resolution --------------------------------------------------------------
     @property
@@ -163,7 +169,10 @@ class BrowserSession:
                        if any("profile" in t.lower() for t in blocking) else "")) from e
             raise
         self.pid = self._attach_proc.pid
-        self.web = Web(self.context, page, self.cfg, native_factory=lambda: self.native, new_window=self.new_window)
+        from sbtest.web.web import Web
+
+        self.web = Web(self.context, page, self.cfg, native_factory=lambda: self.native, new_window=self.new_window,
+                       recover=self.recover, home_url=self.home_url)
         if first:   # the first web.open of the start page does not load it again (once it is there)
             self.web.preloaded_url = first
         log.info("Started browser pid=%s chromium=%s profile=%s", self.pid, self.info.get("chromium"), self.profile.dir)
@@ -184,8 +193,75 @@ class BrowserSession:
                      "chromium": chromium_version_from({"Browser": v.get("product", ""),
                                                         "User-Agent": v.get("userAgent", "")}) or ""}
         await cdp.detach()
+        self.context.on("page", self._track)
+        for page in self.context.pages:
+            await self._track(page)
         # a browser started with a window (attached to by hand) already has its first tab
         return self.context.pages[0] if self.context.pages else None
+
+    # -- tabs that leave the home page -----------------------------------------------------
+    # Samsung cuts DevTools off a tab that leaves its home page (newtab): the tab goes on to the
+    # next page, but Playwright reports it closed and never sees it again. A new connection
+    # sees it: ``recover`` reconnects when a "closed" tab is in fact still open.
+
+    async def _track(self, page) -> None:
+        """Remember the DevTools target id of every tab (to find it again after a reconnect)."""
+        if page in self._targets:
+            return
+        try:
+            cdp = await self.context.new_cdp_session(page)
+            info = await cdp.send("Target.getTargetInfo")
+            await cdp.detach()
+            self._targets.setdefault(page, info["targetInfo"]["targetId"])
+        except Exception as e:  # noqa: BLE001 - closed meanwhile
+            log.debug("tab not tracked: %s", e)
+
+    async def _open_tabs(self) -> set[str]:
+        cdp = await self.browser.new_browser_cdp_session()
+        try:
+            return {t["targetId"] for t in (await cdp.send("Target.getTargets"))["targetInfos"] if t["type"] == "page"}
+        finally:
+            await cdp.detach()
+
+    def recover(self, page=None):
+        """Reconnect when Playwright lost a tab that is still open (it left the home page).
+        Returns the new Playwright page of ``page`` (None when it was not lost)."""
+        if threading.current_thread() is runtime()._thread:
+            return None        # inside a Playwright call: the next call from the test recovers
+        with self._recover_lock:
+            closed = [p for p in list(self._targets) if p.is_closed()]
+            if not closed or self.browser is None or not self.browser.is_connected():
+                return None
+            want = self._targets.get(page) if page is not None else None
+            alive = runtime().run(self._open_tabs(), 10, "list the tabs")
+            lost = {self._targets[p] for p in closed} & alive
+            for p in closed:
+                self._targets.pop(p, None)
+            if not lost:
+                return None
+            self._reconnect()
+            return next((p for p, t in self._targets.items() if t == want), None) if want else None
+
+    def _reconnect(self) -> None:
+        rt = runtime()
+        port = int((self.profile.dir / "DevToolsActivePort").read_text().split()[0])
+        tracing = self._trace_on
+        if tracing:   # a trace belongs to one connection: keep this part, go on in the new one
+            part = self.out_dir / "traces" / f".part{len(self._trace_parts) + 1}_{self.profile.dir.name}.zip"
+            self._trace_save(part)
+            self._trace_parts.append(part)
+            self._trace_on = False
+        old = self.browser
+        rt.run(self._attach(rt, port), 30, "attach to the browser again")
+        try:   # closes the old connection only
+            rt.run(old.close(), 5)
+        except Exception as e:  # noqa: BLE001
+            log.debug("old connection: %s", e)
+        if self.web is not None:
+            self.web.rebind(self.context)
+        if tracing:
+            self.trace_begin(self.name)
+        log.info("attached again: a tab left the home page (Samsung cuts DevTools off it)")
 
     # -- first window and start page -----------------------------------------------
     def _start_url(self) -> str:
@@ -194,12 +270,13 @@ class BrowserSession:
 
     def _first_url(self) -> str:
         """URL the first window opens on at start: the start page; "" = no window until the
-        test's first web.open. The home page (newtab) is not used: Samsung blocks DevTools on it."""
-        url = self._start_url()
-        if "newtab" in url:
-            log.warning("start page %s skipped: DevTools is blocked on the home page", url)
-            return ""
-        return url
+        test's first web.open (or the home page for a native step before it)."""
+        return self._start_url()
+
+    @property
+    def home_url(self) -> str:
+        """The browser's home page (``pages.newtab``): what a user sees in a new window."""
+        return self.cfg.page_url("newtab")
 
     @property
     def has_window(self) -> bool:
@@ -224,10 +301,12 @@ class BrowserSession:
         w, h = self.cfg.get("browser.window_size") or (1400, 900)
         before = set(self.context.pages)
         cdp = await self.browser.new_browser_cdp_session()
+        target_id = None
         try:
             for target in dict.fromkeys([url, "about:blank"]):
                 try:
-                    await cdp.send("Target.createTarget", {"url": target, "newWindow": True, "width": w, "height": h})
+                    target_id = (await cdp.send("Target.createTarget", {
+                        "url": target, "newWindow": True, "width": w, "height": h}))["targetId"]
                     break
                 except Exception as e:  # noqa: BLE001 - try about:blank instead
                     log.warning("window not opened on %s (%s)", target, e)
@@ -236,6 +315,8 @@ class BrowserSession:
         while True:      # Playwright reports the new tab a moment later
             new = [p for p in self.context.pages if p not in before]
             if new:
+                if target_id:
+                    self._targets[new[0]] = target_id
                 return new[0]
             await asyncio.sleep(0.02)
 
@@ -279,7 +360,7 @@ class BrowserSession:
 
             pid = self.pid or poll(lambda: find_browser_pid(str(self.profile.dir)), 15, message="browser pid")
             self._native = NativeBrowser(pid, self.cfg)
-            # a native step before any page was opened: the window opens on about:blank
+            # a native step before any page was opened: the window opens on the home page
             self._native.ensure_window = lambda: self.web.page if self.web is not None else None
         return self._native
 
@@ -297,6 +378,7 @@ class BrowserSession:
                                  find_browser_pid(str(self.profile.dir))]):
             kill_tree(pid)
         self.browser = self.context = self.web = self._native = self._attach_proc = None
+        self._targets.clear()
         self.pid = None
         self._trace_on = False
         if remove_profile if remove_profile is not None else not self.cfg.get("browser.keep_profile"):

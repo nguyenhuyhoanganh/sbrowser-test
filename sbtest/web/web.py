@@ -11,6 +11,8 @@ a test needs Playwright itself: run their (async) calls with ``web.run(web.page.
 """
 from __future__ import annotations
 
+import threading
+
 from playwright.async_api import ElementHandle
 
 from sbtest import steps
@@ -36,13 +38,19 @@ MAX_CONSOLE_LINES = 500
 
 
 class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
-    def __init__(self, context, page, cfg, native_factory=None, new_window=None) -> None:
+    def __init__(self, context, page, cfg, native_factory=None, new_window=None, recover=None,
+                 home_url: str = "") -> None:
         self.rt = runtime()
         self.context = context
         self._page = page
         #: ``new_window(url)`` -> Playwright page of a new browser window opened on ``url``.
         #: The browser starts without a window: the first ``open`` makes it on its page.
         self._new_window = new_window
+        #: ``recover(page)`` -> the page again after Playwright lost a tab that is still open
+        #: (Samsung cuts DevTools off a tab leaving its home page), None when nothing was lost
+        self._recover = recover
+        #: the browser's home page: a window the test did not open on a page shows it
+        self.home_url = home_url
         self.cfg = cfg
         self._native_factory = native_factory
         self._frames: list = []
@@ -74,20 +82,59 @@ class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
     @property
     def page(self):
         """Playwright page of the current tab (``switch_tab`` / ``wait_new_tab`` change it).
-        Before the first ``open`` the browser has no window: using the page opens one on
-        about:blank."""
+        Before the first ``open`` the browser has no window: using the page opens one on the
+        home page."""
+        if threading.current_thread() is self.rt._thread:
+            return self._page          # inside a Playwright call: never open or reconnect here
+        self._find_lost()
+        self._drop_closed()
         if self._page is None and self._new_window is not None:
-            self._page = self._new_window("about:blank")
+            self._page = self._new_window(self.home_url or "about:blank")
         return self._page
 
     @page.setter
     def page(self, value) -> None:
         self._page = value
 
+    def _find_lost(self) -> None:
+        """Reconnect when Playwright lost a tab that is still open, and keep the current one."""
+        if self._recover is None:
+            return
+        cur = self._page
+        new = self._recover(cur)
+        if new is not None and cur is not None and cur.is_closed():
+            self._page = new
+            self._frames.clear()
+
+    def rebind(self, context) -> None:
+        """Go on with the browser context of a new connection (``session.recover``)."""
+        self.context = context
+        self.run(self._listen())
+
+    def is_home(self, page=None) -> bool:
+        """True when the tab (default: the current one) shows the browser's home page."""
+        page = page if page is not None else self._page
+        url = page.url if page is not None else ""
+        return url.startswith(("chrome://new-tab-page", "chrome://newtab", "internet://newtab"))
+
     @property
     def has_window(self) -> bool:
-        """False while the browser has no window yet (nothing opened since the start)."""
+        """False while the browser has no window (nothing opened since the start, or every
+        window was closed)."""
+        self._drop_closed()
         return self._page is not None
+
+    def _drop_closed(self) -> None:
+        """Every window was closed (the current tab with them): back to "no window" - the next
+        page opens a new one, like a user starting the browser again."""
+        if self._page is None or not self._page.is_closed() or self.context.pages:
+            return
+        if threading.current_thread() is self.rt._thread:
+            return
+        self._find_lost()           # a tab that left the home page is not closed: find it first
+        if self._page is not None and self._page.is_closed() and not self.context.pages:
+            self._page = None
+            self._frames.clear()
 
     @property
     def root(self):
@@ -135,10 +182,9 @@ class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
         ``web.js("return arguments[0].value", el)``. Arguments: JSON values and elements.
         Returns JSON; a DOM node comes back as an element, an array of nodes as a list of
         elements. A returned Promise is awaited."""
-        return self.run(self._js(script, args), what="JavaScript")
+        return self.run(self._js(self.root, script, args), what="JavaScript")
 
-    async def _js(self, script: str, args: tuple):
-        root = self.root
+    async def _js(self, root, script: str, args: tuple):
         out = await root.evaluate(_JS_CALL % script, list(args))
         if not out.get("node"):
             return out.get("value")

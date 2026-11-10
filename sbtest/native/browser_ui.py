@@ -71,7 +71,7 @@ class NativeBrowser:
         self._bubbles_until = 0.0     # watch_startup_bubbles: look for them until then
         self._bubbles_next = 0.0      # next look (at most every 0.5 s)
         #: called before anything needs the browser window: the browser starts without one
-        #: (the session opens it on about:blank when the test has not opened a page yet)
+        #: (the session opens it on the home page when the test has not opened a page yet)
         self.ensure_window = None
 
     def _need_window(self) -> None:
@@ -249,9 +249,8 @@ class NativeBrowser:
     def focus_page(self) -> None:
         """Move keyboard focus out of the omnibox into the web content, like clicking the page.
 
-        On some builds the omnibox shows other icons while it has focus and the bookmark star
-        (``PageActionView``) only appears once it loses focus; a page opened by ``web.open`` can
-        leave the focus in the omnibox."""
+        The bookmark star only shows while the omnibox has no focus; a page opened by
+        ``web.open`` can leave the focus in the omnibox."""
         main = self.main_window()
         content = [h for h in uia.descendants(main, class_name="Chrome_RenderWidgetHostHWND") if h.is_visible()]
         if content:

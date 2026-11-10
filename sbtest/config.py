@@ -25,7 +25,6 @@ SITE_DIR = RESOURCES_DIR / "site"
 ENV_MAP = {
     "SB_EXE": "browser.exe",
     "SB_HEADLESS": "browser.headless",
-    "SB_SCOPE": "browser.scope",
     "SB_START_PAGE": "browser.start_page",
     "SB_ARTIFACTS": "paths.artifacts",
 }

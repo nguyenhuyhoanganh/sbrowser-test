@@ -1,5 +1,5 @@
 # Logical name -> UIA criteria of Samsung Browser's own UI (toolbar, menus, bubbles, dialogs),
-# used as native.click("<name>"). Verified on Samsung Browser 31.0.1.40 (Chromium 151).
+# used as native.click("<name>").
 # Keys: title, title_re, control_type, auto_id, class_name, class_name_re, found_index;
 # {name} is filled by native.click("<key>", name="X"). Find names with
 # python -m sbtest.tools.uia_dump. How the UI behaves: .agents/skills/sbtest-author/references/feature-notes.md
@@ -85,7 +85,7 @@ extension_action:            # pinned add-on icon: "<name>\nHas access to this s
   title_re: "^{name}"
 download_bubble_item:        # row of the toolbar Downloads bubble: "<name> <size> • Done"
   class_name: DownloadBubbleTransparentButton
-download_bubble_close:       # X of that bubble (on some builds it covers "Clear download history");
+download_bubble_close:       # X of that bubble (it can cover "Clear download history");
   control_type: Button       # native.close_download_bubble() presses Esc if it is not found
   title_re: "(?i)^close$"
 bookmarks_bar:
@@ -100,7 +100,6 @@ dialogs:
   file_save: "(?i)save as"
   file_open: "(?i)^open$"
   download_bubble: "(?i)downloads?"
-  # not exercised by any test yet - check with uia_dump before relying on them:
   print: "(?i)^print$"
   http_auth: "(?i)sign in"
   permission_prompt: "(?i)wants to|show notifications|know your location|use your camera|use your microphone"
