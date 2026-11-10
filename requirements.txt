@@ -1,4 +1,4 @@
-selenium>=4.25
+playwright>=1.49        # attaches to the browser over DevTools; no `playwright install` needed
 pytest>=8.0
 pytest-html>=4.1
 pytest-rerunfailures>=14.0

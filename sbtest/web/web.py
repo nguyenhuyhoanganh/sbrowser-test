@@ -1,44 +1,146 @@
 """``Web``: the single object tests use for everything inside web content.
 
     web.open_internal("bookmarks")
-    web.type("bookmarks-app >>> cr-toolbar >>> cr-toolbar-search-field >>> input", "abc")
+    web.type("bookmarks-app >>> #searchInput", "abc")
     web.click("text=Delete")
-    assert "Deleted" in web.text("deepcss=cr-toast")
+    assert "deleted" in web.text("si-snack-bar")
+
+Built on Playwright, attached to the browser the session started. ``web.page`` is the
+Playwright page of the current tab and ``web.context`` its browser context, for the rare case
+a test needs Playwright itself: run their (async) calls with ``web.run(web.page.pdf())``.
 """
 from __future__ import annotations
 
+from playwright.async_api import ElementHandle
+
 from sbtest import steps
+from sbtest.browser.runtime import runtime
+from sbtest.utils import log
 from sbtest.web.actions import ActionsMixin
 from sbtest.web.navigation import NavigationMixin
 from sbtest.web.reader import ReaderMixin
 from sbtest.web.waits import WaitsMixin
 
+# Runs a script written like a function body ("return arguments[0].value") and says whether
+# the result holds DOM nodes: those come back as element handles, everything else as JSON.
+_JS_CALL = """async (__args) => {
+  const __v = await (function() {
+%s
+  }).apply(null, __args);
+  const isNode = x => !!x && typeof x === 'object' && typeof x.nodeType === 'number' && typeof x.nodeName === 'string';
+  if (isNode(__v) || (Array.isArray(__v) && __v.some(isNode))) { window.__sbtest_ret = __v; return {node: true}; }
+  return {value: __v};
+}"""
+_JS_TAKE = "() => { const v = window.__sbtest_ret; delete window.__sbtest_ret; return v; }"
+MAX_CONSOLE_LINES = 500
+
 
 class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
-    def __init__(self, driver, cfg, native_factory=None) -> None:
-        self.driver = driver
+    def __init__(self, context, page, cfg, native_factory=None) -> None:
+        self.rt = runtime()
+        self.context = context
+        #: Playwright page of the current tab (``switch_tab`` / ``wait_new_tab`` change it)
+        self.page = page
         self.cfg = cfg
         self._native_factory = native_factory
+        self._frames: list = []
         self.timeout = float(cfg.get("timeouts.default", 10))
         self.long_timeout = float(cfg.get("timeouts.long", 30))
         self.interval = float(cfg.get("timeouts.poll", 0.2))
+        #: seconds a click / typing waits for its element to be ready before the fallback
+        self.action_timeout = float(cfg.get("timeouts.action", 5))
+        self.page_load_timeout = float(cfg.get("timeouts.page_load", 30))
+        #: seconds any single browser command may take (a blocked page raises TimeoutError)
+        self.command_timeout = float(cfg.get("timeouts.command", 30))
         #: (locator text, element or None) of the last element looked up - used by failure reports
         self.last_target: tuple[str, object] | None = None
         #: URL the browser start opened in the first tab (browser.start_page); the first open()
         #: of exactly that URL does not load it again
         self.preloaded_url = ""
+        #: every JavaScript dialog seen: {type, message, answer, expected}
+        self.dialogs: list[dict] = []
+        self._dialog_plans: list = []
+        #: console errors / warnings and uncaught page errors of every tab (failure evidence)
+        self.console: list[str] = []
+        self.run(self._listen())
 
+    # -- Playwright plumbing ---------------------------------------------------------
+    def run(self, coro, timeout: float | None = None, what: str = ""):
+        """Run a Playwright coroutine and return its result (TimeoutError after ``timeout`` s)."""
+        return self.rt.run(coro, self.command_timeout if timeout is None else timeout, what)
+
+    @property
+    def root(self):
+        """Where locators are searched: the current tab, or the iframe of ``with web.frame(...)``."""
+        return self._frames[-1] if self._frames else self.page
+
+    async def _listen(self) -> None:
+        self.context.on("dialog", self._on_dialog)
+        self.context.on("console", self._on_console)
+        self.context.on("weberror", lambda e: self._log_console(f"[pageerror] {e.error}"))
+
+    def _log_console(self, line: str) -> None:
+        if len(self.console) < MAX_CONSOLE_LINES:
+            self.console.append(" ".join(line.split())[:500])
+
+    def _on_console(self, msg) -> None:
+        if msg.type in ("error", "warning"):
+            where = msg.location or {}
+            self._log_console(f"[{msg.type}] {msg.text}  ({where.get('url', '')}:{where.get('lineNumber', '')})")
+
+    async def _on_dialog(self, dialog) -> None:
+        """Answer a JavaScript dialog at once (an open one blocks the page and every command):
+        as the running ``with web.dialog(...)`` says, else dismiss it (leave the page for a
+        "Leave site?" dialog) and keep it in ``web.dialogs``."""
+        plan = self._dialog_plans[-1] if self._dialog_plans else None
+        accept = plan.accept if plan else dialog.type == "beforeunload"
+        rec = {"type": dialog.type, "message": dialog.message, "answer": "accept" if accept else "dismiss",
+               "expected": plan is not None}
+        self.dialogs.append(rec)
+        if plan is not None:
+            plan.seen.append(rec)
+        else:
+            log.warning("unexpected JavaScript %s %r: %sed", dialog.type, dialog.message, rec["answer"])
+        try:
+            if accept:
+                await dialog.accept(plan.prompt_text if plan and plan.prompt_text is not None else "")
+            else:
+                await dialog.dismiss()
+        except Exception as e:  # noqa: BLE001 - the page closed meanwhile
+            log.debug("dialog answer failed: %s", e)
+
+    # -- JavaScript --------------------------------------------------------------------
+    def js(self, script: str, *args):
+        """Run JavaScript written as a function body in the page (or current iframe):
+        ``web.js("return arguments[0].value", el)``. Arguments: JSON values and elements.
+        Returns JSON; a DOM node comes back as an element, an array of nodes as a list of
+        elements. A returned Promise is awaited."""
+        return self.run(self._js(script, args), what="JavaScript")
+
+    async def _js(self, script: str, args: tuple):
+        root = self.root
+        out = await root.evaluate(_JS_CALL % script, list(args))
+        if not out.get("node"):
+            return out.get("value")
+        handle = await root.evaluate_handle(_JS_TAKE)
+        el = handle.as_element()
+        if el is not None:
+            return el
+        props = await handle.get_properties()
+        items = [props[k] for k in sorted((k for k in props if k.isdigit()), key=int)]
+        return [p.as_element() or await p.json_value() for p in items]
+
+    # -- evidence ------------------------------------------------------------------------
     def highlight(self, el=None, color: str = "red") -> bool:
         """Outline an element (default: the last one used) so it shows in a screenshot."""
         el = el if el is not None else (self.last_target[1] if self.last_target else None)
-        if el is None:
+        if not isinstance(el, ElementHandle):
             return False
         try:
-            self.driver.execute_script(
-                "const e = arguments[0]; e.scrollIntoView({block: 'center'});"
-                "e.style.outline = '3px solid ' + arguments[1]; e.style.outlineOffset = '2px';", el, color)
+            self.js("const e = arguments[0]; e.scrollIntoView({block: 'center'});"
+                    "e.style.outline = '3px solid ' + arguments[1]; e.style.outlineOffset = '2px';", el, color)
             return True
-        except Exception:  # noqa: BLE001 - stale / detached element
+        except Exception:  # noqa: BLE001 - detached element
             return False
 
     def _mark(self, kind: str, el, label: str = "") -> None:
@@ -46,9 +148,8 @@ class Web(WaitsMixin, ActionsMixin, ReaderMixin, NavigationMixin):
         if not steps.recording() or el is None:
             return
         try:
-            rect = self.driver.execute_script(
-                "const r = arguments[0].getBoundingClientRect();"
-                "return [r.left, r.top, r.width, r.height, window.devicePixelRatio];", el)
+            rect = self.js("const r = arguments[0].getBoundingClientRect();"
+                           "return [r.left, r.top, r.width, r.height, window.devicePixelRatio];", el)
             steps.mark(kind, label, web=tuple(rect))
         except Exception:  # noqa: BLE001 - only a picture aid
             pass

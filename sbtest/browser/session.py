@@ -3,32 +3,30 @@
     session = BrowserSession(cfg, name="test_x")
     session.profile.bookmarks({...})        # seed BEFORE start
     session.start()
-    session.web.open("https://example.com")  # web layer (Selenium)
+    session.web.open("https://example.com")  # web layer (Playwright)
     session.native.hotkey("^d")             # native layer (pywinauto), Windows only
     session.restart()                       # same profile -> persistence checks
     session.stop()
+
+We start the exe ourselves with ``--remote-debugging-port`` and Playwright attaches to it over
+the DevTools protocol (``connect_over_cdp``): the browser is the real build with its real UI,
+no driver binary has to match its Chromium version.
 """
 from __future__ import annotations
 
-import json
 import os
 import subprocess
 import time
-import urllib.request
 from pathlib import Path
 
 import psutil
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 
-from sbtest.browser.driver_resolver import resolve_chromedriver
 from sbtest.browser.profile import Profile
-from sbtest.browser.version import detect_chromium_version, wait_devtools_port
+from sbtest.browser.runtime import runtime
+from sbtest.browser.version import chromium_version_from, wait_devtools_port
 from sbtest.config import Config
-from sbtest.web.web import Web
 from sbtest.utils import find_browser_pid, kill_tree, log, poll
-
-_RESOLVED: dict[str, tuple[str, str]] = {}  # exe -> (chromium_version, chromedriver) per process
+from sbtest.web.web import Web
 
 
 def merge_feature_switches(args: list[str]) -> list[str]:
@@ -51,14 +49,6 @@ class BrowserCrashed(AssertionError):
     """The browser exited with a non-zero code while closing (a product failure)."""
 
 
-def _bypass_proxy_for_localhost() -> None:
-    """HTTP(S)_PROXY env vars (company proxy) must not be used to reach the local
-    chromedriver, DevTools or the local test site."""
-    for var in ("NO_PROXY", "no_proxy"):
-        current = [h.strip() for h in os.environ.get(var, "").split(",") if h.strip()]
-        os.environ[var] = ",".join(current + [h for h in ("localhost", "127.0.0.1") if h not in current])
-
-
 class BrowserSession:
     def __init__(self, cfg: Config, name: str = "", profile: Profile | None = None,
                  extra_args: list[str] | None = None, extensions: list[str | Path] | None = None,
@@ -66,16 +56,21 @@ class BrowserSession:
         self.cfg = cfg
         self.name = name
         self.artifacts = cfg.path("paths.artifacts")
-        # chromedriver logs and temporary profiles go with the output they belong to
+        # temporary profiles and traces go with the output they belong to
         self.out_dir = Path(out_dir) if out_dir else cfg.path("paths.results")
         self.profile = profile or Profile(self.out_dir / "profiles", name)
         self.extra_args = list(extra_args or [])
         self.extensions = [str(Path(e).resolve()) for e in (extensions or [])]
         self.extra_prefs = prefs or {}
-        #: internal page name (``history``) or URL the first tab opens before chromedriver attaches
+        #: internal page name (``history``) or URL the first tab opens right after the start
         self.start_page = start_page if start_page is not None else ""
-        self.driver: webdriver.Chrome | None = None
+        self.browser = None            # Playwright Browser (the DevTools connection)
+        self.context = None            # its default context: the profile's tabs
         self.web: Web | None = None
+        #: {"chromium": "151.0.7700.1", "user_agent": ..., "product": ...} of the running build
+        self.info: dict = {}
+        self._trace_on = False
+        self._trace_parts: list[Path] = []
         self._native = None
         self._attach_proc: subprocess.Popen | None = None
         self._prefs_seeded = False
@@ -92,32 +87,13 @@ class BrowserSession:
             raise FileNotFoundError(f"Browser exe not found: {exe}")
         return str(exe)
 
-    def resolve(self) -> tuple[str, str]:
-        exe = self.exe
-        if exe not in _RESOLVED:
-            version = self.cfg.get("browser.chromium_version") or ""
-            driver = self.cfg.get("browser.chromedriver") or ""
-            if not version:
-                try:   # also with a configured driver: its version is checked against it
-                    version = detect_chromium_version(exe, self.artifacts / ".cache", self._browser_args(probe=True))
-                except Exception as e:  # noqa: BLE001
-                    if not driver:
-                        raise
-                    log.warning("Chromium version not detected (%s): configured chromedriver not checked", e)
-            _RESOLVED[exe] = (version, resolve_chromedriver(driver, version,
-                                                            proxy=self.cfg.get("network.download_proxy") or ""))
-            log.info("Browser %s | chromium %s | chromedriver %s", exe, *_RESOLVED[exe])
-        return _RESOLVED[exe]
-
     # -- options -----------------------------------------------------------------
-    def _browser_args(self, probe: bool = False) -> list[str]:
+    def _browser_args(self) -> list[str]:
         args = list(self.cfg.get("browser.args") or [])
         if self.cfg.get("browser.headless"):
             args.append("--headless=new")
         if os.name != "nt" and os.geteuid() == 0:
             args += ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]  # Linux CI containers only
-        if probe:
-            return args
         w, h = self.cfg.get("browser.window_size") or (1400, 900)
         args += [f"--window-size={w},{h}", f"--user-data-dir={self.profile.dir}"]
         proxy = self.cfg.get("network.browser_proxy")
@@ -141,50 +117,32 @@ class BrowserSession:
         self.profile.prefs(prefs)
 
     # -- lifecycle ---------------------------------------------------------------
+    @property
+    def alive(self) -> bool:
+        """True while the browser is started and the connection to it is open."""
+        return self.web is not None and self.browser is not None and self.browser.is_connected()
+
     def start(self) -> "BrowserSession":
-        t_lookup = time.monotonic()
-        _, driver_path = self.resolve()   # once per run: Chromium version (cached) + chromedriver
+        rt = runtime()   # first call of the process starts Playwright (about a second)
         t0 = time.monotonic()
         self._seed_prefs()
-        opts = webdriver.ChromeOptions()
-        log_dir = self.out_dir / "logs"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        # chromedriver's version check reads the DevTools "Browser" field, which holds the Samsung
-        # product version on some builds ("31.0.1.21" on Chromium 157): resolve() checks the
-        # driver against the real Chromium version instead (driver_resolver.check_driver)
-        service = Service(driver_path, service_args=["--disable-build-check"], log_output=str(log_dir / f"chromedriver_{self.profile.dir.name}.log"))
-        _bypass_proxy_for_localhost()
         try:   # whatever fails while starting, the browser launched here must not stay on screen
-            if self.cfg.get("browser.mode") == "attach":
-                # restart(): the previous run's port file would point chromedriver at a dead port
-                (self.profile.dir / "DevToolsActivePort").unlink(missing_ok=True)
-                self._attach_proc = subprocess.Popen([self.exe, *self._browser_args(), "--remote-debugging-port=0",
-                                                      "about:blank"])
-                port = wait_devtools_port(self.profile.dir)
-                opts.debugger_address = f"127.0.0.1:{port}"
-                t_browser = time.monotonic()
-                start_url = self._preload_start_page(port)
-            else:
-                opts.binary_location = self.exe
-                for a in self._browser_args():
-                    opts.add_argument(a)
-                if self.cfg.get("browser.exclude_switches"):
-                    opts.add_experimental_option("excludeSwitches", list(self.cfg.get("browser.exclude_switches")))
-                t_browser = t0
-                start_url = ""
-                if self._start_url():
-                    log.warning("browser.start_page needs browser.mode attach: ignored")
-            self.driver = webdriver.Chrome(options=opts, service=service)
+            # restart(): the previous run's port file would point at a dead port
+            (self.profile.dir / "DevToolsActivePort").unlink(missing_ok=True)
+            self._attach_proc = subprocess.Popen([self.exe, *self._browser_args(), "--remote-debugging-port=0",
+                                                  "about:blank"],
+                                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            port = wait_devtools_port(self.profile.dir)
+            t_browser = time.monotonic()
+            page = rt.run(self._attach(rt, port), 60, "attach to the browser")
             # where the start time goes (shown per test by run.py and in the summary)
-            self.timings = {"browser": round(t_browser - t0, 1),
-                            "chromedriver": round(time.monotonic() - t_browser, 1)}
-            if t0 - t_lookup >= 0.1:
-                self.timings["driver lookup"] = round(t0 - t_lookup, 1)
+            self.timings = {"browser": round(t_browser - t0, 1), "attach": round(time.monotonic() - t_browser, 1)}
         except Exception as e:
             blocking = self._blocking_dialogs()
             if self._attach_proc:   # a leftover window would cover the next tests (their clicks land on it)
                 kill_tree(self._attach_proc.pid)
                 self._attach_proc = None
+            self.browser = self.context = None
             if blocking:
                 raise RuntimeError(
                     f"the browser shows {', '.join(blocking)} instead of starting"
@@ -192,58 +150,53 @@ class BrowserSession:
                        f"{self.profile.dir}); move the repo to a shorter folder such as C:\\sbtest"
                        if any("profile" in t.lower() for t in blocking) else "")) from e
             raise
-        self.driver.set_page_load_timeout(float(self.cfg.get("timeouts.page_load", 30)))
-        self.pid = self._attach_proc.pid if self._attach_proc else find_browser_pid(str(self.profile.dir))
-        self.web = Web(self.driver, self.cfg, native_factory=lambda: self.native)
-        self.web.preloaded_url = start_url
-        log.info("Started browser pid=%s profile=%s", self.pid, self.profile.dir)
+        self.pid = self._attach_proc.pid
+        self.web = Web(self.context, page, self.cfg, native_factory=lambda: self.native)
+        self._open_start_page()
+        log.info("Started browser pid=%s chromium=%s profile=%s", self.pid, self.info.get("chromium"), self.profile.dir)
         return self
+
+    async def _attach(self, rt, port: int):
+        self.browser = await rt.playwright.chromium.connect_over_cdp(f"http://127.0.0.1:{port}", timeout=45000)
+        self.context = self.browser.contexts[0]
+        self.context.set_default_timeout(float(self.cfg.get("timeouts.default", 10)) * 1000)
+        self.context.set_default_navigation_timeout(float(self.cfg.get("timeouts.page_load", 30)) * 1000)
+        cdp = await self.browser.new_browser_cdp_session()
+        # Playwright redirects downloads into its own temp folder under random names: give them
+        # back to the browser (the profile's download folder, the Downloads bubble, Save As)
+        await cdp.send("Browser.setDownloadBehavior", {"behavior": "default"})
+        v = await cdp.send("Browser.getVersion")
+        self.info = {"product": v.get("product", ""), "user_agent": v.get("userAgent", ""),
+                     "chromium": chromium_version_from({"Browser": v.get("product", ""),
+                                                        "User-Agent": v.get("userAgent", "")}) or ""}
+        await cdp.detach()
+        return self.context.pages[0] if self.context.pages else await self.context.new_page()
 
     # -- start page --------------------------------------------------------------
     def _start_url(self) -> str:
         page = self.start_page or self.cfg.get("browser.start_page") or ""
         return self.cfg.page_url(page) if page else ""
 
-    def _preload_start_page(self, port: int) -> str:
-        """Send the first tab from about:blank to the start page over DevTools right away, so
-        it loads while chromedriver starts. The command line cannot open chrome:// pages
-        (Chromium drops them); the home page (newtab) cannot be used: Samsung blocks DevTools
-        on it and chromedriver then fails to attach. Returns the URL, "" when not preloaded."""
+    def _open_start_page(self) -> None:
+        """Send the first tab from about:blank to the start page without waiting for it: it
+        loads while the fixtures finish. The command line cannot open chrome:// pages
+        (Chromium drops them); the home page (newtab) is not used: Samsung blocks DevTools
+        on it."""
         url = self._start_url()
         if not url:
-            return ""
+            return
         if "newtab" in url:
             log.warning("start page %s skipped: DevTools is blocked on the home page", url)
-            return ""
+            return
         try:
-            import websocket   # websocket-client, a dependency of selenium
-
-            def page_target():
-                with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as r:
-                    return next((t for t in json.load(r) if t.get("type") == "page"
-                                 and t.get("webSocketDebuggerUrl")), None)
-
-            target = poll(page_target, 5, 0.05, "first tab")
-            ws = websocket.create_connection(target["webSocketDebuggerUrl"], timeout=5, suppress_origin=True)
-            try:
-                ws.send(json.dumps({"id": 1, "method": "Page.navigate", "params": {"url": url}}))
-                while True:
-                    reply = json.loads(ws.recv())
-                    if reply.get("id") == 1:
-                        break
-            finally:
-                ws.close()
-            if "error" in reply or reply.get("result", {}).get("errorText"):
-                raise RuntimeError(reply.get("error") or reply["result"]["errorText"])
-            log.info("start page %s loading before chromedriver attaches", url)
-            return url
+            self.web.run(self.web.page.goto(url, wait_until="commit"), 10)
+            self.web.preloaded_url = url
         except Exception as e:  # noqa: BLE001 - the test opens the page itself then
-            log.warning("start page %s not preloaded (%s)", url, e)
-            return ""
+            log.warning("start page %s not opened (%s)", url, e)
 
     def _blocking_dialogs(self) -> list[str]:
         """Titles of message boxes the browser shows on start ("Profile error occurred"), which
-        keep it from answering chromedriver. Windows only; [] when there are none."""
+        keep it from answering DevTools. Windows only; [] when there are none."""
         pid = self._attach_proc.pid if self._attach_proc else find_browser_pid(str(self.profile.dir))
         if os.name != "nt" or not pid:
             return []
@@ -288,16 +241,17 @@ class BrowserSession:
         return self.profile.downloads
 
     def stop(self, remove_profile: bool | None = None) -> None:
-        if self.driver is not None:
-            try:
-                self.driver.quit()
+        if self.browser is not None:
+            try:   # closes the connection only: the browser is ours to stop, below
+                runtime().run(self.browser.close(), 10)
             except Exception as e:  # noqa: BLE001 - browser may already be gone
-                log.warning("driver.quit failed: %s", e)
+                log.debug("disconnect failed: %s", e)
         for pid in filter(None, [self._attach_proc.pid if self._attach_proc else None,
                                  find_browser_pid(str(self.profile.dir))]):
             kill_tree(pid)
-        self.driver = self.web = self._native = self._attach_proc = None
+        self.browser = self.context = self.web = self._native = self._attach_proc = None
         self.pid = None
+        self._trace_on = False
         if remove_profile if remove_profile is not None else not self.cfg.get("browser.keep_profile"):
             self.profile.remove()
 
@@ -310,14 +264,22 @@ class BrowserSession:
         and changes it had not written yet (a bookmark edited < 2.5 s before) are lost.
         """
         exit_code = None
-        if self.driver is not None:
+        tracing = self._trace_on
+        if tracing:   # a trace belongs to one connection: keep this part, go on in a new one
+            part = self.out_dir / "traces" / f".part{len(self._trace_parts) + 1}_{self.profile.dir.name}.zip"
+            self._trace_save(part)
+            self._trace_parts.append(part)
+        if self.browser is not None:
             exit_code = self._close_gracefully()
         self.stop(remove_profile=False)
         if exit_code:
             raise BrowserCrashed(
                 f"the browser crashed while closing (exit code {exit_code & 0xFFFFFFFF:#010x}); "
                 "changes it had not saved yet are lost")
-        return self.start()
+        self.start()
+        if tracing:
+            self.trace_begin(self.name)
+        return self
 
     def _close_gracefully(self, timeout: float = 15) -> int | None:
         """CDP Browser.close, then wait for the browser process itself (not a process-list
@@ -328,8 +290,13 @@ class BrowserSession:
             proc = psutil.Process(pid) if pid else None
         except psutil.NoSuchProcess:
             proc = None
+
+        async def _close():
+            cdp = await self.browser.new_browser_cdp_session()
+            await cdp.send("Browser.close")
+
         try:
-            self.driver.execute_cdp_cmd("Browser.close", {})
+            runtime().run(_close(), 5)
         except Exception as e:  # noqa: BLE001 - connection drops while closing
             log.debug("Browser.close: %s", e)
         try:
@@ -339,6 +306,46 @@ class BrowserSession:
         except (subprocess.TimeoutExpired, psutil.TimeoutExpired):
             log.warning("browser did not exit within %ss after Browser.close, killing it", timeout)
             return None
+
+    # -- Playwright trace ----------------------------------------------------------
+    def trace_begin(self, title: str = "") -> None:
+        """Start recording a Playwright trace of this browser (every action with DOM snapshots
+        and screenshots, console, network) - ended by ``trace_end``."""
+        tracing = self.context.tracing
+        try:
+            if self._trace_on:
+                runtime().run(tracing.start_chunk(title=title or self.name), 15)
+            else:
+                runtime().run(tracing.start(title=title or self.name, screenshots=True, snapshots=True), 15)
+            self._trace_on = True
+        except Exception as e:  # noqa: BLE001 - a trace is evidence, never a reason to fail
+            log.warning("trace not started: %s", e)
+
+    def _trace_save(self, path: Path | None) -> bool:
+        try:
+            if path is not None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+            runtime().run(self.context.tracing.stop_chunk(path=str(path) if path else None), 60)
+            return True
+        except Exception as e:  # noqa: BLE001
+            log.warning("trace not saved: %s", e)
+            return False
+
+    def trace_end(self, path: Path | None) -> list[Path]:
+        """Stop the trace: write it to ``path`` (None = throw it away). A test that restarted
+        the browser has one file per browser run; returns the files written."""
+        parts, self._trace_parts = self._trace_parts, []
+        saved: list[Path] = []
+        for i, part in enumerate(parts, 1):
+            if path is not None and part.exists():
+                target = path.with_name(f"{path.stem}.before-restart-{i}.zip")
+                part.replace(target)
+                saved.append(target)
+            else:
+                part.unlink(missing_ok=True)
+        if self._trace_on and self.alive and self._trace_save(path) and path is not None:
+            saved.append(path)
+        return saved
 
     def __enter__(self) -> "BrowserSession":
         return self.start()

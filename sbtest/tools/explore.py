@@ -17,8 +17,9 @@ the pictures and dumps to learn names, selectors and behaviour before writing pa
     python -m pytest tests/_scratch/test_explore_bookmarks.py -s -p no:cacheprovider
 
 Each ``snap(name)`` writes ``NN_name.png`` (the browser windows: native bubbles included),
-``NN_name.dom.txt`` (DOM through shadow roots, every line ends with a ready locator) and
-``NN_name.uia.txt`` (browser windows as UIA). ``try_step`` snaps after the action and keeps
+``NN_name.dom.txt`` (DOM through shadow roots, every line ends with a ready locator),
+``NN_name.aria.yaml`` (the page's accessibility tree: roles, names, states - the short view)
+and ``NN_name.uia.txt`` (browser windows as UIA). ``try_step`` snaps after the action and keeps
 going when it fails, so one run shows the whole flow. Delete the scratch file afterwards.
 """
 from __future__ import annotations
@@ -61,6 +62,10 @@ class Explorer:
             except Exception as e:  # noqa: BLE001 - the page may be blocked by a modal browser UI
                 text = f"# DOM unavailable: {type(e).__name__}: {e}"
             base.with_suffix(".dom.txt").write_text(text, encoding="utf-8")
+            try:
+                base.with_suffix(".aria.yaml").write_text(self.web.aria_snapshot(), encoding="utf-8")
+            except Exception:  # noqa: BLE001 - same reason
+                pass
         print(f"[explore] {shot}")
         return shot
 

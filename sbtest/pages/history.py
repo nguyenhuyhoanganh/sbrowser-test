@@ -1,6 +1,7 @@
-"""Samsung history page (internet://history; WebDriver URL chrome://history).
+"""Samsung history page (internet://history; opened as chrome://history).
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
+ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
 
 How it differs from Chromium:
 - one history-item per entry; the first entry of a day also carries the day header
@@ -15,10 +16,10 @@ How it differs from Chromium:
 """
 from __future__ import annotations
 
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.remote.webelement import WebElement
+from playwright.async_api import Error as PlaywrightError
 
 from sbtest.pages.base import BasePage
+from sbtest.web import Element
 
 
 _JS_ROWS = r"""
@@ -44,7 +45,7 @@ class HistoryPage(BasePage):
     TIME_FILTERS = ("All time", "Last hour", "Today", "Yesterday", "Older")
 
     # -- read ----------------------------------------------------------------------
-    def items(self) -> list[WebElement]:
+    def items(self) -> list[Element]:
         return self.web.find_all(self.ITEMS)
 
     def rows(self) -> list[dict]:
@@ -53,7 +54,7 @@ class HistoryPage(BasePage):
         for attempt in range(5):
             try:
                 return self.web.js(_JS_ROWS, self.items())
-            except StaleElementReferenceException:   # the list re-rendered while read
+            except PlaywrightError:   # the list re-rendered while read
                 if attempt == 4:
                     raise
         return []
@@ -68,7 +69,7 @@ class HistoryPage(BasePage):
         """Day headers in order ("Today - Tuesday, October 20, 2026", ...)."""
         return [r["day"] for r in self.rows() if r["day"]]
 
-    def item(self, title: str, timeout: float | None = None) -> WebElement:
+    def item(self, title: str, timeout: float | None = None) -> Element:
         """The row of ``title`` (the newest when it was visited several times)."""
         def _f():
             for i in self.items():

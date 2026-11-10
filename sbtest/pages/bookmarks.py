@@ -1,6 +1,7 @@
-"""Samsung bookmark manager (internet://bookmarks; WebDriver URL chrome://bookmarks).
+"""Samsung bookmark manager (internet://bookmarks; opened as chrome://bookmarks).
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
+ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
 
 How it differs from Chromium:
 - rows are selected with a round check box (si-select); Edit / Share / Delete / Select all
@@ -18,10 +19,9 @@ How it differs from Chromium:
 """
 from __future__ import annotations
 
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.remote.webelement import WebElement
 
 from sbtest.pages.base import BasePage, q
+from sbtest.web import Element, Keys
 
 
 class BookmarksPage(BasePage):
@@ -46,7 +46,7 @@ class BookmarksPage(BasePage):
         """Titles shown in the list for the current folder / search, in order."""
         return [self.web.attr(el, "title") or self.web.text(el) for el in self.web.find_all(self.ITEM_TITLE)]
 
-    def item(self, title: str, timeout: float | None = None) -> WebElement:
+    def item(self, title: str, timeout: float | None = None) -> Element:
         """The row of ``title`` in the list."""
         return self.web.find(f"bookmarks-app >>> bookmarks-list >>> bookmarks-item[aria-label={q(title)}]", timeout)
 

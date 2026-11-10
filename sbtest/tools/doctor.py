@@ -3,8 +3,8 @@
     python -m sbtest.tools.doctor                 # uses config/local.yaml
     python -m sbtest.tools.doctor --exe "C:\\build\\SamsungInternet.exe"
 
-Checks: Python + packages, keyboard, download tool, exe, Chromium version, chromedriver,
-browser start, internal pages, native UI (the toolbar entries of config/native_ui.yaml).
+Checks: Python + packages, keyboard, exe, browser start and the DevTools connection (with the
+build's Chromium version), internal pages, native UI (the toolbar entries of config/native_ui.yaml).
 One line per check; problems carry a "fix:" line. Screenshots, dumps and the technical log
 (doctor.log) go to artifacts/doctor/. ``setup.bat`` runs this after installing.
 """
@@ -14,7 +14,6 @@ import importlib.util
 import os
 import sys
 import time
-from pathlib import Path
 
 from sbtest.reporting.cleanup import clear_dir
 from sbtest.tools import console
@@ -24,7 +23,7 @@ from sbtest.tools.console import FAIL, OK, WARN
 results: list[str] = []
 SECTIONS = 5
 
-PACKAGES = {"selenium": "selenium", "pytest": "pytest", "yaml": "PyYAML", "psutil": "psutil", "PIL": "Pillow",
+PACKAGES = {"playwright": "playwright", "pytest": "pytest", "yaml": "PyYAML", "psutil": "psutil", "PIL": "Pillow",
             "pytest_html": "pytest-html", "imageio_ffmpeg": "imageio-ffmpeg"}
 WINDOWS_PACKAGES = {"pywinauto": "pywinauto", "win32api": "pywin32"}
 PAGES = {"extensions": "Add-ons", "bookmarks": "Bookmarks", "history": "History", "downloads": "Downloads",
@@ -69,7 +68,7 @@ def main(argv=None, step: str = "") -> int:
         console.title("sbtest doctor - can this machine run the tests?")
     if not step:   # setup.bat has just checked Python and installed the packages
         _python_and_packages()
-    _keyboard_and_network()
+    _keyboard()
     session = _browser_files(cfg, out)
     if session is not None:
         try:
@@ -100,21 +99,12 @@ IME_PROCESSES = {"unikeynt.exe": "UniKey", "unikey.exe": "UniKey", "evkey.exe": 
                  "openkey.exe": "OpenKey", "gotiengviet.exe": "GoTiengViet"}
 
 
-def _keyboard_and_network() -> None:
-    _section("Keyboard and network")
+def _keyboard() -> None:
+    _section("Keyboard")
     if os.name != "nt":
         report(WARN, "Not Windows: the browser UI checks are skipped (Samsung Browser is Windows-only)")
     else:
         _check_typing()
-    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
-    if proxy:
-        report(OK, f"Proxy for downloads: {proxy}")
-    from sbtest.browser.driver_resolver import curl_exe
-
-    curl = curl_exe()
-    report(OK if curl else WARN, f"Download tool: {curl}" if curl else "No curl.exe found",
-           "chromedriver cannot be downloaded (Windows 10 1803+ has C:\\Windows\\System32\\curl.exe): "
-           "copy a chromedriver of the build's Chromium major to artifacts\\drivers\\<major>\\")
 
 
 def _check_typing() -> None:
@@ -140,8 +130,8 @@ def _check_typing() -> None:
 
 # -- 3 -------------------------------------------------------------------------------
 def _browser_files(cfg, out):
-    """The exe, its Chromium version and chromedriver -> a session ready to start (or None)."""
-    _section("Browser and chromedriver")
+    """The exe -> a session ready to start (or None)."""
+    _section("Browser")
     exe = str(cfg.path("browser.exe")) if cfg.get("browser.exe") else ""
     if not exe or not os.path.exists(exe):
         report(FAIL, "Samsung Browser not found" + (f" at {exe}" if exe else ""),
@@ -157,25 +147,9 @@ def _browser_files(cfg, out):
         # Chromium cannot open profile files past 260 characters ("Profile error occurred")
         report(OK, f"Browser profiles go to {SHORT_ROOT} (the repo folder is too deep for them)")
 
-    from sbtest.browser.driver_resolver import driver_version
-
     from sbtest.browser.session import BrowserSession
-    from sbtest.config import DRIVERS_DIR, ROOT
 
-    console.note("finding the Chromium version and chromedriver (downloaded if this machine has none)")
-    had = set(DRIVERS_DIR.glob("*/chromedriver*"))
-    session = BrowserSession(cfg, name="doctor", out_dir=out)
-    try:
-        chromium, driver = session.resolve()
-    except Exception as e:  # noqa: BLE001
-        report(FAIL, "No usable chromedriver", f"{str(e).splitlines()[0]}  (details: artifacts\\doctor\\doctor.log)")
-        return None
-    if chromium:
-        report(OK, f"Built on Chromium {chromium}")
-    shown = Path(driver).relative_to(ROOT) if Path(driver).is_relative_to(ROOT) else driver
-    new = " (downloaded now)" if Path(driver).is_relative_to(ROOT) and Path(driver) not in had else ""
-    report(OK, f"chromedriver {driver_version(driver) or ''}: {shown}{new}")
-    return session
+    return BrowserSession(cfg, name="doctor", out_dir=out)
 
 
 # -- 4 -------------------------------------------------------------------------------
@@ -183,13 +157,12 @@ def _browser_start(session) -> bool:
     _section("Browser start and internal pages")
     try:
         session.start()
-        report(OK, "Browser starts and WebDriver connects")
+        report(OK, f"Browser starts and Playwright connects (built on Chromium {session.info.get('chromium') or '?'})")
         return True
     except Exception as e:  # noqa: BLE001
         report(FAIL, f"Browser did not start: {str(e).splitlines()[0][:160]}",
-               "close other Samsung Browser windows of the test profile and run again; chromedriver log in "
-               "artifacts\\doctor\\logs\\ (a fork that Google's chromedriver does not accept needs one built "
-               "from the fork: browser.chromedriver)")
+               "close other Samsung Browser windows of the test profile and run again; the build must "
+               "keep --remote-debugging-port (details: artifacts\\doctor\\doctor.log)")
         return False
 
 
@@ -204,10 +177,10 @@ def _internal_pages(cfg, session, out) -> None:
             if "ERR_" in body or not body.strip():
                 broken.append(label)
             session.web.screenshot(out / f"page_{name}.png")
-        except Exception as e:  # noqa: BLE001
-            if "invalid session" in str(e).lower():
+        except Exception:  # noqa: BLE001
+            if not session.alive:
                 report(FAIL, f"The browser closed or crashed while opening {label}",
-                       "see artifacts\\doctor\\logs\\; run doctor again - if it repeats, report the build")
+                       "see artifacts\\doctor\\doctor.log; run doctor again - if it repeats, report the build")
                 return
             broken.append(label)
     if broken:

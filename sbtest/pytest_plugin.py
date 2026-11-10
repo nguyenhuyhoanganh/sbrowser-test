@@ -16,7 +16,7 @@ Markers:
     @pytest.mark.browser(bookmarks=..., prefs={...}, args=[...], extensions=["sample_addon"], profile="name",
                          start_page="history")
                                   preconditions applied BEFORE the browser starts
-                                  (start_page: page the first tab opens while chromedriver attaches)
+                                  (start_page: page the first tab opens right after the start)
     @pytest.mark.sanity / slow
     Feature markers come from the folder: tests/features/<feature>/ -> <feature>.
 """
@@ -48,8 +48,6 @@ SKIP_NATIVE = "native UI not available (needs Windows, pywinauto, non-headless)"
 def pytest_addoption(parser):
     g = parser.getgroup("sbtest")
     g.addoption("--exe", help="SamsungInternet.exe (overrides browser.exe of the config)")
-    g.addoption("--driver", help="chromedriver path")
-    g.addoption("--mode", choices=["launch", "attach"], help="how chromedriver connects to the browser")
     g.addoption("--headless", action="store_true", default=None, help="headless (native tests are skipped)")
     g.addoption("--browser-scope", choices=["function", "module", "session"],
                 help="reuse one browser per module/session for tests without @browser marker")
@@ -62,6 +60,8 @@ def pytest_addoption(parser):
                 help="a picture before every interaction (target framed) and after every step()")
     g.addoption("--record", action="store_true", default=False,
                 help="record a video of every test (browser windows, step caption, framed interactions)")
+    g.addoption("--pw-trace", nargs="?", const="failed", choices=["failed", "all", "off"],
+                help="Playwright trace per test (traces/<test>.zip): of failed tests (default with the flag) or all")
     g.addoption("--share-media", choices=["failed", "all", "none"],
                 help="cases whose videos / step pictures go in the files shared on Confluence or Jira "
                      "(default report.share_media: failed)")
@@ -78,14 +78,13 @@ def pytest_configure(config):
         config.addinivalue_line("markers", line)
     cfg = load_config({
         "browser.exe": config.getoption("--exe"),
-        "browser.chromedriver": config.getoption("--driver"),
-        "browser.mode": config.getoption("--mode"),
         "browser.headless": config.getoption("--headless"),
         "browser.scope": config.getoption("--browser-scope"),
         "browser.keep_profile": config.getoption("--keep-profile"),
         "report.screenshot_steps": True if config.getoption("--screenshot-steps") else None,
         "report.record_video": True if config.getoption("--record") else None,
         "report.share_media": config.getoption("--share-media"),
+        "report.trace": config.getoption("--pw-trace"),
     })
     run_dir = config.getoption("--run-dir")
     run_dir = Path(run_dir) if run_dir else cfg.path("paths.results")
@@ -176,7 +175,7 @@ def pytest_collection_finish(session):
 
 def pytest_report_header(config):
     cfg = config._sb_cfg
-    return [f"sbtest: exe={cfg.get('browser.exe') or '<not set>'} mode={cfg.get('browser.mode')} "
+    return [f"sbtest: exe={cfg.get('browser.exe') or '<not set>'} "
             f"headless={cfg.get('browser.headless')} native={cfg.native_enabled} scope={cfg.get('browser.scope')}",
             f"sbtest: results={config._sb_run_dir}"]
 
@@ -215,7 +214,7 @@ class _Shared:
 
     def get(self, key: str, factory) -> BrowserSession:
         s = self.sessions.get(key)
-        if s is None or s.driver is None:
+        if s is None or not s.alive:
             s = self.sessions[key] = factory()
         return s
 
@@ -260,14 +259,12 @@ def _build_session(cfg, site, request) -> BrowserSession:
 def _reset_shared(s: BrowserSession) -> None:
     """Leave a shared browser neutral: one tab on about:blank, no dialogs."""
     try:
-        if s.web.has_alert():
-            s.web.dismiss_alert()
         tabs = s.web.tabs
-        for h in tabs[1:]:
-            s.driver.switch_to.window(h)
-            s.driver.close()
-        s.driver.switch_to.window(tabs[0])
+        for tab in tabs[1:]:
+            s.web.run(tab.close())
+        s.web.switch_tab(0)
         s.web.open("about:blank")
+        del s.web.dialogs[:], s.web.console[:]
         if s.native:
             s.native.close_stray_dialogs()
     except Exception as e:  # noqa: BLE001 - broken session: drop it
@@ -275,20 +272,47 @@ def _reset_shared(s: BrowserSession) -> None:
         s.stop()
 
 
+def _end_trace(s: BrowserSession, request) -> None:
+    """Keep the test's Playwright trace when it failed (``report.trace: failed``) or always (``all``)."""
+    mode = request.config._sb_cfg.get("report.trace") or "off"
+    if mode == "off":
+        return
+    node = request.node
+    keep = mode == "all" or getattr(node, "_sb_failed", False)
+    path = request.config._sb_run_dir / "traces" / f"{slug(node.nodeid, 150)}.zip"
+    saved = s.trace_end(path if keep else None)
+    res = request.config._sb_results.tests.get(node.nodeid)
+    if res is not None and saved:
+        res["trace"] = [str(p) for p in saved]
+        failure = Path(res.get("evidence_dir") or "") / "failure.txt"
+        if res.get("evidence_dir") and failure.exists():
+            with failure.open("a", encoding="utf-8") as f:
+                f.writelines(f"trace: {p}  (open: python -m playwright show-trace \"{p}\")\n" for p in saved)
+
+
 @pytest.fixture
 def session(cfg, site, request):
     scope = cfg.get("browser.scope", "function")
+    tracing = (cfg.get("report.trace") or "off") != "off"
     if scope == "function" or request.node.get_closest_marker("browser"):
         s = _build_session(cfg, site, request)
         request.node._sb_session = s
+        if tracing:
+            s.trace_begin(request.node.name)
         yield s
+        if tracing:
+            _end_trace(s, request)
         s.stop()
         return
     key = "session" if scope == "session" else str(request.node.fspath)
     _shared.close_except(key)
     s = _shared.get(key, lambda: _build_session(cfg, site, request))
     request.node._sb_session = s
+    if tracing:
+        s.trace_begin(request.node.name)
     yield s
+    if tracing:
+        _end_trace(s, request)
     _reset_shared(s)
 
 
@@ -346,17 +370,16 @@ def _steps_section(hist: list[dict]) -> str:
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item):
-    """``--record``: a video of the test body (videos/<test>.mp4), Windows desktop only."""
+    """``--record``: a video of the test body (videos/<test>.mp4) - the browser's windows on a
+    Windows desktop, the current tab where the screen cannot be recorded (headless, no desktop)."""
     recorder = None
     session = getattr(item, "_sb_session", None)
-    if item.config._sb_cfg.get("report.record_video") and session is not None and evidence.can_grab_screen(
-            item.config._sb_cfg):
+    if item.config._sb_cfg.get("report.record_video") and session is not None and session.alive:
         try:
-            from sbtest.reporting.video import Recorder
+            from sbtest.reporting.video import recorder_for
 
-            if session.native is not None:
-                recorder = Recorder(session, item.config._sb_run_dir / "videos" / f"{slug(item.nodeid, 150)}.mp4")
-                item._sb_recorder = recorder.start()
+            recorder = recorder_for(session, item.config._sb_run_dir / "videos" / f"{slug(item.nodeid, 150)}.mp4")
+            item._sb_recorder = recorder.start()
         except Exception as e:  # noqa: BLE001 - a missing video never fails a test
             log.warning("video recording not started: %s", e)
             recorder = item._sb_recorder = None
@@ -387,10 +410,13 @@ def pytest_runtest_makereport(item, call):
         if failed:
             res["failed_step"], res["expected"] = failed[-1]["title"], failed[-1]["expected"]
     if rep.when == "call" and rep.passed:  # also clears a failure from an earlier rerun
+        item._sb_failed = False
         res.update(outcome="passed", message="", failed_step="", expected="", evidence_dir="", evidence=[])
         if item.config._sb_cfg.get("report.result_screenshot", True):
             res["screenshot"] = evidence.result_screenshot(getattr(item, "_sb_session", None), item.config._sb_cfg,
                                                            item.config._sb_run_dir, item.nodeid)
+    if rep.failed and rep.when in ("setup", "call"):
+        item._sb_failed = True   # the session fixture keeps the trace of a failed test
     if rep.skipped:
         res["outcome"] = "skipped"
         res["message"] = str(rep.longrepr[-1]) if isinstance(rep.longrepr, tuple) else str(rep.longrepr or "")
@@ -399,10 +425,10 @@ def pytest_runtest_makereport(item, call):
         crash = getattr(rep.longrepr, "reprcrash", None)
         lines = (rep.longreprtext or "").strip().splitlines()
         message = crash.message if crash else (lines[-1] if lines else "")
-        # chromedriver appends a native stacktrace ("Stacktrace:\n#0 0x...") - keep the readable part
-        # the "[sbtest] failed at step" note repeats failed_step / expected, stored on their own
+        # the "[sbtest] failed at step" note repeats failed_step / expected, stored on their own;
+        # Playwright appends its "Call log:" - keep the readable part
         message = message.split("\n[sbtest] failed at step")[0]
-        res["message"] = message.split("\nStacktrace:")[0].split("; For documentation")[0].strip()[:600]
+        res["message"] = message.split("\nCall log:")[0].strip()[:600]
         if rep.when in ("setup", "call"):
             try:
                 out, saved = evidence.collect_failure(getattr(item, "_sb_session", None), item.config._sb_cfg,

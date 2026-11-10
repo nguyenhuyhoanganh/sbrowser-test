@@ -1,6 +1,6 @@
 ---
 name: sbtest-author
-description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per feature under tests/features, one test file per case) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Selenium web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
+description: Creates and maintains the automated tests of Samsung Internet / Samsung Browser for Windows (a Chromium fork) in the sbtest repo - first asks for the SamsungInternet.exe path and prepares the machine with setup.bat, then brings test cases from a Confluence/Jira link, pasted text, a table or an export into case docs (one Markdown file per feature under tests/features, one test file per case) with the team's IDs, turns a case or a plain request ("test that the bookmark panel lists X", "write a test for this flow") into a stable pytest test by exploring the real build first (screenshots, DOM and UIA dumps), and repairs tests, page objects and the native UI map that broke after a Chromium merge. Holds the framework reference (Playwright web layer, pywinauto native layer, test data, page objects, conventions, feature traps). Use when test cases must be imported, a test must be written, extended or fixed, or a page object, test data or native UI handling must be added.
 ---
 
 # Creating tests: cases in, stable tests out
@@ -22,7 +22,7 @@ Running a whole build and reporting on it is the `sbtest-run` skill, not this on
 | `references/action-catalog.md` | a case step -> the call that does it (pages, toolbar, bubbles, dialogs, files, asserts) |
 | `references/feature-notes.md` | the product's traps, per feature - the only place they are written |
 | `references/writing-tests.md` | shape of a test, fixtures, markers, imports; preconditions as data (seeds, prefs, add-ons, local site, files, profiles) |
-| `references/web-api.md` | `web`: locators, Shadow DOM, waits, clicks / typing / drag, tabs, frames, JS dialogs |
+| `references/web-api.md` | `web` (Playwright): locators, Shadow DOM, waits, clicks / typing / drag, tabs, frames, JS dialogs |
 | `references/native-ui.md` | `native`: the ui map, toolbar, address bar, menus, bubbles, Save As / Open dialogs, Explorer, shortcuts |
 | `references/page-objects.md` | adding or changing a page object (`sbtest/pages/`) |
 | `references/debugging.md` | the exploring tools (`dom`, `uia_dump`), evidence of a run, typical failures, a page or UI changed after a merge |
@@ -55,7 +55,7 @@ again for what the user already gave.
    | Git Bash | `./setup.bat --exe "<path>" --save` |
 
    It creates `.venv`, installs the packages, saves the exe in `config/local.yaml` as the
-   default of every later command, downloads chromedriver and checks the machine. The last
+   default of every later command and checks the machine. The last
    line decides:
    - **READY** (with or without WARN lines) -> go on; leave WARN lines as they are (do not
      close the user's programs) and tell the user about them in the final answer.
@@ -101,7 +101,7 @@ Ask for what is missing:
   and labels the user reads in the case (`native.menu("Add-ons")`, `dlg.click("Remove")`).
 - Never weaken an assertion to pass. The product behaves differently from the case -> leave
   the test as the case says and report the difference with the evidence paths.
-- Not automatable (real account, hardware, external apps, a prompt WebDriver cannot see) ->
+- Not automatable (real account, hardware, external apps, a prompt the web layer cannot see) ->
   `- Automated: no (<reason>)` under the case and in your report.
 
 **web or native?** Inside the page (internal pages too) -> `web` / page objects. Browser
@@ -140,13 +140,14 @@ Explorer, real mouse -> `native`. The case's `Type` and the test agree: `native`
    - Read the feature's section of `references/feature-notes.md` (known traps).
    - Every step has a row in `references/action-catalog.md` and every label it needs is named
      there or in feature-notes -> no scratch test: at most one look at an internal page with
-     `python -m sbtest.tools.dom <page> --interactive` (with data, and the other tools:
+     `python -m sbtest.tools.dom <page> --aria` (what the page offers: roles and names) or
+     `--interactive` (the locators; with data, and the other tools:
      `references/debugging.md`, "Exploring"); the step pictures of B5b confirm the rest.
    - Otherwise (a step with no row, a label nobody wrote down, an unknown bubble or dialog) ->
      a scratch test: copy `templates/explore_template.py` to
      `tests/_scratch/test_explore_<topic>.py`, edit, run
      `python -m pytest tests/_scratch/test_explore_<topic>.py -s -p no:cacheprovider`.
-     `x.snap(label)` saves `artifacts/explore/<topic>/NN_label.png` + `.dom.txt` + `.uia.txt`;
+     `x.snap(label)` saves `artifacts/explore/<topic>/NN_label.png` + `.dom.txt` + `.aria.yaml` + `.uia.txt`;
      `x.try_step(label, fn)` goes on after errors; `x.find_native("(?i)text")` /
      `x.find_web("text")` print exact names and locators.
    - **Open the screenshots and look at them**: a toast instead of a bubble, a new tab instead
@@ -184,7 +185,7 @@ build really shows, and say so in your report.
    anything (what each evidence file holds and typical errors: `references/debugging.md`).
 2. Give it one label (the same labels as the `sbtest-run` skill):
    - **regression** - the behaviour differs from the case's Expected, or the browser crashed
-     (`BrowserCrashed`, `invalid session id`) -> report it with the evidence; leave the test
+     (`BrowserCrashed`, `Target crashed`, `... has been closed`) -> report it with the evidence; leave the test
      as it is;
    - **UI changed** - the flow still works, different markup, labels or browser UI -> report
      it as a change the team has to review and **ask the user** whether to update the test;
@@ -192,7 +193,7 @@ build really shows, and say so in your report.
      (`python -m sbtest.tools.dom <page>`) or the browser UI (`python -m sbtest.tools.uia_dump`),
      fix the page object or `config/native_ui.yaml`; keep method names, parameters and return
      types (`references/debugging.md`, "When a page or the browser UI changed");
-   - **environment** - locked desktop, another window in front, driver mismatch -> fix the
+   - **environment** - locked desktop, another window in front -> fix the
      machine (`python -m sbtest.tools.doctor`), not the test;
    - **flaky** - passes when run again -> a race: find the missing wait, stale list read or
      shared data.
@@ -203,7 +204,9 @@ build really shows, and say so in your report.
 
 ## Before you finish
 
-Changed any file under `sbtest/` -> `python -m pytest tests/framework -q` must be green.
+Changed any file under `sbtest/` -> `python -m pytest tests/framework -q` must be green
+(`tests/framework/test_live.py` drives a real Chromium headless and is skipped where none is
+installed: `python -m playwright install chromium` once, or `SBTEST_LIVE_EXE=<a Chromium exe>`).
 Report to the user: cases written or changed, the test and its runs (4x green, feature run), new
 page-object methods / ui-map keys / catalogue rows, labels that differ from the case's
 wording, product differences (with evidence paths), cases marked not automatable. Do not

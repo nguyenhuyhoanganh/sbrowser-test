@@ -80,7 +80,7 @@ def build_info(meta: dict) -> list[tuple[str, str]]:
     return [
         ("Build", f"{meta.get('product_version') or '?'}"), ("Chromium", meta.get("browser_version") or "?"),
         ("Executable", meta.get("exe") or ""),
-        ("chromedriver", meta.get("chromedriver") or ""), ("Machine", f"{meta.get('machine', '')} - {meta.get('os', '')}"),
+        ("Playwright", meta.get("playwright") or ""), ("Machine", f"{meta.get('machine', '')} - {meta.get('os', '')}"),
         ("Started", (meta.get("started") or "").replace("T", " ")), ("Finished", (meta.get("finished") or "").replace("T", " ")),
         ("Selection", meta.get("selection") or "all"),
     ]

@@ -17,7 +17,6 @@ from sbtest.server import LocalSite
 def base_parser(description: str) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=description)
     p.add_argument("--exe", help="browser exe (default: config/env SB_EXE)")
-    p.add_argument("--driver", help="chromedriver path")
     p.add_argument("--headless", action="store_true", default=None)
     p.add_argument("-v", "--verbose", action="store_true")
     return p
@@ -26,8 +25,7 @@ def base_parser(description: str) -> argparse.ArgumentParser:
 def make_config(args):
     logging.basicConfig(level=logging.DEBUG if getattr(args, "verbose", False) else logging.INFO,
                         format="%(levelname)s %(name)s: %(message)s")
-    return load_config({"browser.exe": args.exe, "browser.chromedriver": args.driver,
-                        "browser.headless": args.headless})
+    return load_config({"browser.exe": args.exe, "browser.headless": args.headless})
 
 
 def start(args, name: str = "tool", extensions=None, bookmarks_spec: str | None = None
@@ -35,7 +33,7 @@ def start(args, name: str = "tool", extensions=None, bookmarks_spec: str | None 
     """Start local site + browser. ``bookmarks_spec`` = ``file.yaml:key`` seeds the profile."""
     cfg = make_config(args)
     site = LocalSite(cfg.path("paths.site"), cfg.get("server.host"), cfg.get("server.port")).start()
-    # tool runs (dom, uia_dump) keep their chromedriver log out of the test results
+    # tool runs (dom, uia_dump) keep their profiles out of the test results
     out = cfg.path("paths.artifacts") / "explore" / "tools"
     clear_dir(out, cfg.path("paths.artifacts"))
     session = BrowserSession(cfg, name=name, extensions=extensions, out_dir=out)

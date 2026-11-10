@@ -239,7 +239,7 @@ class NativeBrowser:
         """Move keyboard focus out of the omnibox into the web content, like clicking the page.
 
         On some builds the omnibox shows other icons while it has focus and the bookmark star
-        (``PageActionView``) only appears once it loses focus; a page opened by WebDriver can
+        (``PageActionView``) only appears once it loses focus; a page opened by ``web.open`` can
         leave the focus in the omnibox."""
         main = self.main_window()
         content = [h for h in uia.descendants(main, class_name="Chrome_RenderWidgetHostHWND") if h.is_visible()]
@@ -423,8 +423,8 @@ class NativeBrowser:
     def web_point(self, web, el, offset: tuple[int, int] = (0, 0)) -> tuple[int, int]:
         """Screen coordinates of the center of a web element (top-level document only)."""
         self._close_late_bubbles()   # a real mouse action on the page: nothing may cover it
-        web.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", el)
-        x, y, dpr = web.driver.execute_script(
+        web.js("arguments[0].scrollIntoView({block: 'center'});", el)
+        x, y, dpr = web.js(
             "const r = arguments[0].getBoundingClientRect();"
             "return [r.left + r.width / 2, r.top + r.height / 2, window.devicePixelRatio];", el)
         ox, oy = self.viewport_origin()
@@ -558,7 +558,7 @@ class NativeBrowser:
 
     def screenshot(self, path: str | Path, whole_screen: bool = False) -> Path:
         """Picture of the browser's windows as they are on screen (native bubbles and dialogs
-        included, which a WebDriver screenshot misses). ``whole_screen`` = every monitor."""
+        included, which a screenshot of the tab misses). ``whole_screen`` = every monitor."""
         from PIL import ImageGrab
 
         path = Path(path)

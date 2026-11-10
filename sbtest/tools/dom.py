@@ -3,7 +3,8 @@
     python -m sbtest.tools.dom bookmarks                     # internal page by name
     python -m sbtest.tools.dom chrome://downloads --interactive
     python -m sbtest.tools.dom /form.html --out artifacts/form_dom.txt
-    python -m sbtest.tools.dom history --exec "web.type('history-app >>> #toolbar >>> cr-toolbar >>> cr-toolbar-search-field >>> input', 'abc')"
+    python -m sbtest.tools.dom history --exec "web.open(site.page('A'))" --exec "web.open('chrome://history')"
+    python -m sbtest.tools.dom bookmarks --aria              # the accessibility tree instead (roles, names, states)
     python -m sbtest.tools.dom bookmarks --seed-bookmarks resources/data/bookmarks.yaml:seed_basic
     python -m sbtest.tools.dom extensions --extension resources/extensions/sample_addon
 
@@ -93,13 +94,16 @@ return out.join('\n');
 
 
 def dump_dom(web, interactive: bool = False, max_text: int = 60, max_nodes: int = 4000) -> str:
-    return web.driver.execute_script(JS_DUMP, interactive, max_text, max_nodes)
+    return web.js(JS_DUMP, interactive, max_text, max_nodes)
 
 
 def main(argv=None) -> int:
     p = base_parser(__doc__.split("\n")[0])
     p.add_argument("url", help="internal page name (bookmarks, history...), /local-site-path or full URL")
     p.add_argument("--interactive", action="store_true", help="only clickable/typeable elements")
+    p.add_argument("--aria", action="store_true",
+                   help="print the accessibility tree (YAML: roles, names, states) instead of the DOM - short, "
+                        "good for a first look; the DOM dump gives the locators")
     p.add_argument("--exec", action="append", default=[], help="python to run before dumping (repeatable)")
     p.add_argument("--wait", type=float, default=1.0, help="seconds to let the page render")
     p.add_argument("--max-nodes", type=int, default=4000)
@@ -112,7 +116,7 @@ def main(argv=None) -> int:
 
     import time
 
-    from selenium.webdriver.common.keys import Keys
+    from sbtest.web import Keys
 
     session, site = None, None
     try:
@@ -124,7 +128,8 @@ def main(argv=None) -> int:
         for code in args.exec:
             exec(code, scope)  # noqa: S102 - developer tool
             time.sleep(args.wait)
-        text = f"# URL: {web.url}\n# TITLE: {web.title}\n" + dump_dom(web, args.interactive, max_nodes=args.max_nodes)
+        text = f"# URL: {web.url}\n# TITLE: {web.title}\n" + (
+            web.aria_snapshot() if args.aria else dump_dom(web, args.interactive, max_nodes=args.max_nodes))
         if args.out:
             Path(args.out).parent.mkdir(parents=True, exist_ok=True)
             Path(args.out).write_text(text, encoding="utf-8")

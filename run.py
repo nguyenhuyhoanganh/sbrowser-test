@@ -17,7 +17,8 @@ Outputs in artifacts/test-results/ (the latest run only: emptied when a run star
   share/              Confluence page body + files to attach to a Confluence page or Jira issue
   failures/<test>/    failure.txt, page.png (element outlined), screen.png, dom.txt, uia.txt
   results.json, junit.xml, report.html (raw pytest report), steps/ with --screenshot-steps
-  logs/               chromedriver logs; profiles/ with --keep-profile
+  videos/ with --record, traces/ with --trace (python -m playwright show-trace <zip>)
+  profiles/           with --keep-profile
 Rebuild the report: python -m sbtest.tools.report [--open]
 """
 from __future__ import annotations
@@ -41,7 +42,6 @@ def main(argv: list[str] | None = None) -> int:
 
     p = argparse.ArgumentParser(description="Samsung Internet automated tests")
     p.add_argument("--exe", help="SamsungInternet.exe (overrides config)")
-    p.add_argument("--driver", help="chromedriver path (default: auto)")
     sel = p.add_mutually_exclusive_group()
     sel.add_argument("--all", action="store_true", help="every test (default)")
     sel.add_argument("--feature", help="comma list: addons,bookmarks,downloads,history,general")
@@ -58,6 +58,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="a picture before every click/typing (target framed in red) and after every step")
     p.add_argument("--record", action="store_true",
                    help="a video of every test (browser windows, step caption, framed clicks) instead of pictures")
+    p.add_argument("--trace", nargs="?", const="failed", choices=["failed", "all", "off"],
+                   help="Playwright trace per test: of failed tests (default with the flag) or all")
     p.add_argument("--share-media", choices=["failed", "all", "none"],
                    help="which cases get their video / step pictures in the files shared on Confluence or Jira (default: failed)")
     p.add_argument("--raw", action="store_true",
@@ -83,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
               "-p", "no:cacheprovider"]
     if importlib.util.find_spec("pytest_html"):  # optional; find_spec avoids importing it too early
         pargs += [f"--html={run_dir / 'report.html'}", "--self-contained-html"]
-    for flag, value in (("--exe", args.exe), ("--driver", args.driver), ("--feature", args.feature),
+    for flag, value in (("--exe", args.exe), ("--feature", args.feature), ("--pw-trace", args.trace),
                         ("--case", args.case), ("--browser-scope", args.scope),
                         ("--share-media", args.share_media)):
         if value:

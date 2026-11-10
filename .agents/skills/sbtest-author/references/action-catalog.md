@@ -138,8 +138,8 @@ Nothing fits: explore (SKILL.md, B2), add a page-object method or ui-map entry, 
 | Save As | `native.file_dialog("save").save_as(path)` |
 | choose a folder | `native.file_dialog("open").select_folder(path)` |
 | drag a file from Explorer | `native.drag_file_from_explorer(path, web=web, target="#drop-zone")` |
-| JS alert / confirm / prompt | `web.accept_alert(prompt_text=...)`, `web.dismiss_alert()` |
-| "Leave site?" (beforeunload) | `- Automated: no (WebDriver accepts beforeunload itself)` (feature-notes, General) |
+| JS alert / confirm / prompt | `with web.dialog(accept=True, prompt_text=...) as d:` around the action that opens it (`accept=False` = Cancel), then `d.text` |
+| "Leave site?" (beforeunload) | `with web.dialog(accept=False) as d:` around the navigation (`web.open(url, blocking=False)`), `d.type == "beforeunload"` (feature-notes, General) |
 | drag & drop inside a page | `web.drag_and_drop(a, b, method="html5" / "actions" / "native")` |
 | Windows notification | `native.wait_os_toast("(?i)text")` |
 | print preview | `native.wait_dialog("print")`, `.press("{ESC}")` (the page is blocked meanwhile: no `web.*`) |

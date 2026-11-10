@@ -59,7 +59,7 @@ again for what the user already gave.
    | Git Bash | `./setup.bat --exe "<path>" --save` |
 
    It creates `.venv`, installs the packages, saves the exe in `config/local.yaml` as the
-   default of every later command, downloads chromedriver and checks the machine. The last
+   default of every later command and checks the machine. The last
    line decides:
    - **READY** (with or without WARN lines) -> go on; leave WARN lines as they are (do not
      close the user's programs) and tell the user about them in the final answer.
@@ -100,6 +100,10 @@ real mouse and keyboard are skipped; say so in the final answer).
 | a video of each test (recommended) | `--record` |
 | a picture before every click / typing + one per step | `--screenshot-steps` |
 | no, the final screenshot is enough | (nothing) |
+
+`--trace` can be added to any answer: failed tests then leave a
+Playwright trace (`traces/<test>.zip`: every web action with DOM snapshot and screenshot) for
+the person who looks into the failure; it is not posted to Confluence / Jira.
 
 A video or pictures make the run about 10% longer (about 10 MB of videos / 22 MB of pictures
 for a full run).
@@ -146,14 +150,14 @@ no failed or error case among those run (skipped = not run); it covers only the 
 that ran.
 
 For each failure, and each `[RERUN]` of step 3, read `failure.txt`, `page.png` and
-`screen.png` in its folder under `artifacts/test-results/failures/` and give it exactly one
+`screen.png` (then `aria.yaml` / `console.txt` when the pictures do not settle it) in its folder under `artifacts/test-results/failures/` and give it exactly one
 label:
 
 | label | when | what to do |
 |---|---|---|
-| **regression** | the behaviour differs from the case's Expected, or the error says the browser crashed (`BrowserCrashed`, `invalid session id`) - also when the rerun passed | report it; do not touch the test |
+| **regression** | the behaviour differs from the case's Expected, or the error says the browser crashed (`BrowserCrashed`, `Target crashed`, `... has been closed`) - also when the rerun passed | report it; do not touch the test |
 | **UI changed** | the flow still works, but markup, labels or browser UI differ from the case or the test (e.g. after a Chromium merge) | report it - the team has to review the change. **Ask the user** whether to update the test; only on a yes do it with the `sbtest-author` skill (`.agents/skills/sbtest-author/SKILL.md`, workflow C) |
-| **environment** | wrong chromedriver, locked desktop, proxy, machine crash, another window in front ("keyboard input would go to <process>") | fix the machine (setup's `fix:` lines, free the desktop) and run again |
+| **environment** | locked desktop, proxy, machine crash, another window in front ("keyboard input would go to <process>") | fix the machine (setup's `fix:` lines, free the desktop) and run again |
 | **flaky** | `[RERUN]` then `[PASS]` with any other error, or it passes when run again with no product change | report it; **ask the user** whether to make it stable with the `sbtest-author` skill (workflow C) |
 
 A case that failed once without `--reruns 1` is not yet a regression: run it again first.

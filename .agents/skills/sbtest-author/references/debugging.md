@@ -12,6 +12,7 @@
 All tools use the exe saved by setup and write under `artifacts/`.
 
 ```
+python -m sbtest.tools.dom <page> --aria                        # first look: the accessibility tree (roles, names, states)
 python -m sbtest.tools.dom <page> --interactive                 # internal page or /local.html: DOM lines ending in "=> <locator>"
 python -m sbtest.tools.dom bookmarks --seed-bookmarks resources/data/bookmarks.yaml:seed_basic
 python -m sbtest.tools.dom extensions --extension resources/extensions/sample_addon
@@ -46,11 +47,12 @@ Each run empties `artifacts/test-results/` first. `<test folder>` = the test's n
 | `failures/<test folder>/dom.txt` | URL, title, tab count + full shadow-piercing DOM with locators |
 | `failures/<test folder>/page.html` | light DOM page source |
 | `failures/<test folder>/uia.txt` | UIA tree of all browser windows |
-| `failures/<test folder>/alert.txt` | text of an open JS dialog (when one blocked everything) |
+| `failures/<test folder>/aria.yaml` | accessibility tree of the tab: roles, names, states - short enough to read whole |
+| `failures/<test folder>/console.txt` | JS dialogs the test met (and how they were answered), console errors / warnings, uncaught page errors |
+| `traces/<test folder>.zip` | `--trace`: Playwright trace of a failed test (every web action with DOM snapshot and screenshot); `python -m playwright show-trace <zip>` - its path is the last line of `failure.txt` |
 | `steps/<test folder>/NN-I_<kind>.jpg` | `--screenshot-steps`: right BEFORE interaction I of step NN, its target in a numbered red frame (keys without a target in a strip at the top) |
 | `steps/<test folder>/NN_<status>_<step>.jpg` | `--screenshot-steps`: how step NN ended |
 | `videos/<test folder>.mp4` | `--record`: the same frames as a video, the running step as a caption |
-| `logs/` | chromedriver logs |
 
 A frame on the wrong element = a wrong locator or ui-map entry, even when the test passes.
 The run prints the failed step under each `[FAIL]`; `run.py --raw` shows pytest's own output
@@ -62,20 +64,20 @@ The run prints the failed step under each `[FAIL]`; `run.py --raw` shows pytest'
 |---------|--------------------|
 | `Timed out ... element visible <loc>` | selector changed (compare `dom.txt` with the page object), element hidden (collapsed tree, closed menu), or wrong frame / tab |
 | works alone, fails in a run | shared state: `unique()` names, no order dependence, give the test a `browser()` marker (own browser) |
-| `StaleElementReferenceException` | the list re-rendered: re-find inside the wait, read rows in one JS call |
-| `ElementClickInterceptedException` | an overlay / snack bar / menu over it: wait for it to close (`web.click` already falls back to a JS click) |
+| an action lands on the wrong row, or reads old text | the list re-rendered and reuses its elements: re-find inside the wait, read rows in one JS call |
+| a click takes 5 s and `page.png` shows something over the element | an overlay / snack bar / menu over it: wait for it to close (`web.click` falls back to a JS click after `timeouts.action`) |
+| `TimeoutError: the browser did not answer within 30s` | the page is blocked by a modal browser UI (print preview, a native prompt): handle that with `native` first; `screen.png` shows it |
+| `TimeoutError ... JavaScript dialog` | the action in `with web.dialog(...)` opened no alert / confirm / prompt (an in-page `si-dialog` is not one) |
 | `keyboard input would go to <process> ..., not the browser` | another window was in front (Windows Widgets, a notification, someone using the machine): environment - keep the desktop free, run again |
 | an internal page lists nothing (timeout waiting for a row) while `page.png` shows the rows | the page was hidden because other windows covered the browser; `config/default.yaml` keeps it rendering (`--disable-backgrounding-occluded-windows`, `--disable-features=CalculateNativeWinOcclusion`) - check that a `browser.args` list in `config/local.yaml` did not drop them |
 | native dialog not found | a different title on this build -> `uia_dump --find`, fix `config/native_ui.yaml`; or the window is not in the foreground (RDP, lock screen) |
-| typing into cr-input does nothing | target the inner `>>> input` |
+| typing into si-input does nothing | target the inner `>>> #input` |
 | page objects fail right after `session.restart()` | they hold the old `web`: `pages.of(session.web)` |
 | `BrowserCrashed: the browser crashed while closing (exit code 0x...)` | product crash on exit - a regression, leave the test as it is |
-| `invalid session id ... Unable to receive message from renderer` | browser / renderer crashed: a regression (keep the log) or an unstable machine; run again once to tell them apart |
-| `chromedriver ... is version X but the browser is Chromium Y` | a wrong driver in `artifacts/drivers/<major>/`: delete that folder, the right one is downloaded again |
-| the run names a wrong Chromium version | the Chromium major comes from the build's User-Agent (`DevTools /json/version` log line); pin `browser.chromium_version` in `config/local.yaml` only if that is wrong too |
-| chromedriver download fails | read the `curl exit N` line; behind a proxy: `HTTPS_PROXY` or `network.download_proxy`; or copy a chromedriver of that major to `artifacts/drivers/<major>/chromedriver.exe` |
+| `Target crashed` / `Target page, context or browser has been closed` | browser / renderer crashed: a regression (keep the evidence) or an unstable machine; run again once to tell them apart |
+| the report names a wrong Chromium version | it comes from the running build (`Browser.getVersion`: the product, or the User-Agent when the product holds Samsung's own version); only shown, nothing depends on it |
 | `X did not render at ... expected internet://...` | wrong `pages.scheme` / path, or the page object's ROOT no longer matches the page |
-| browser starts but chromedriver can't connect | `--mode attach`; check that the fork keeps `--remote-debugging-port` and reports `Chrome/x.y.z.w` in `/json/version` |
+| the browser starts but `attach to the browser` times out | the fork must keep `--remote-debugging-port` and write `DevToolsActivePort` into the profile; another Samsung Browser on the same profile also blocks it |
 | `the browser shows "Profile error occurred"`, then "cannot connect to chrome" | profile paths past Windows' 260-character limit: move the repo to a short folder such as `C:\sbtest` |
 
 ## When a page or the browser UI changed (after a Chromium merge)

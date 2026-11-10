@@ -152,7 +152,7 @@ def test_clear_dir_empties_only_folders_inside_artifacts(tmp_path):
     (results / "failures" / "test_x").mkdir(parents=True)
     (results / "results.json").write_text("{}")
     (results / "logs").mkdir()
-    (results / "logs" / "chromedriver_x.log").write_text("log")
+    (results / "logs" / "x.log").write_text("log")
     (tmp_path / ".cache").mkdir()
 
     assert clear_dir(results, tmp_path) == []

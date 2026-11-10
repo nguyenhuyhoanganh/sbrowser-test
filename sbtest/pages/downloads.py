@@ -1,6 +1,7 @@
-"""Samsung downloads page (internet://downloads; WebDriver URL chrome://downloads).
+"""Samsung downloads page (internet://downloads; opened as chrome://downloads).
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
+ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
 
 How it differs from Chromium:
 - left side bar: search + category filter (All, Image, Video, Audio, Document, Others)
@@ -15,9 +16,9 @@ from __future__ import annotations
 
 import time
 
-from selenium.webdriver.remote.webelement import WebElement
 
 from sbtest.pages.base import BasePage
+from sbtest.web import Element
 
 
 _JS_ITEM_INFO = r"""
@@ -48,7 +49,7 @@ class DownloadsPage(BasePage):
     CATEGORIES = ("All", "Image", "Video", "Audio", "Document", "Others")
 
     # -- read ----------------------------------------------------------------------
-    def items(self) -> list[WebElement]:
+    def items(self) -> list[Element]:
         return self.web.find_all(self.ITEMS)
 
     def info(self, item) -> dict:
@@ -58,7 +59,7 @@ class DownloadsPage(BasePage):
     def names(self) -> list[str]:
         return [self.info(i)["name"] for i in self.items()]
 
-    def item(self, name: str, timeout: float | None = None) -> WebElement:
+    def item(self, name: str, timeout: float | None = None) -> Element:
         """The row of file ``name``. The list reuses its row elements when it re-renders (a
         download added, removed, restored): a row counts once it shows ``name`` on two reads
         in a row, so an action never lands on a row that just changed."""
@@ -67,9 +68,9 @@ class DownloadsPage(BasePage):
         def _f():
             for i in self.items():
                 if self.info(i)["name"] == name:
-                    if seen.get("row") == i.id:
+                    if seen.get("row") is not None and self.web.same_element(seen["row"], i):
                         return i
-                    seen["row"] = i.id
+                    seen["row"] = i
                     time.sleep(0.2)
                     return None
             seen.clear()

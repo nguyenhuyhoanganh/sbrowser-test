@@ -1,10 +1,9 @@
 """Web layer and page objects: locator syntax, the pages factory."""
 from types import SimpleNamespace
 
-from selenium.webdriver.common.by import By
-
 from sbtest.pages import ExtensionsPage, Pages
-from sbtest.web.locators import Locator, parse
+from sbtest.web.actions import Keys, key_combos
+from sbtest.web.locators import Locator, parse, to_selector
 
 
 def test_default_is_css():
@@ -28,9 +27,22 @@ def test_shadow_path():
     assert parse("css=a >>> b").kind == "deep"
 
 
-def test_tuple():
-    assert parse((By.ID, "x")) == Locator("id", "x")
-    assert parse((By.CSS_SELECTOR, "a")) == Locator("css", "a")
+def test_playwright_selectors():
+    assert to_selector("#a .b") == "css=#a .b"
+    assert to_selector("a-app >>> #x >>> input") == "css=a-app >> css=#x >> css=input"
+    assert to_selector("deepcss=si-snack-bar", visible=True) == "css=si-snack-bar >> visible=true"
+    assert to_selector('text=Say "hi"') == 'text="Say \\"hi\\""'
+    assert to_selector("text~=a.b") == "text=/a\\.b/i"
+    assert to_selector("id=x") == 'css=[id="x"]'
+    assert to_selector("aria=Search").startswith('css=[aria-label="Search"], [title="Search"]')
+    assert to_selector('role=button[name="Save"]') == 'role=button[name="Save"]'
+    assert to_selector("pw=internal:label=Name") == "internal:label=Name"
+
+
+def test_key_names():
+    assert key_combos((Keys.CONTROL, "a")) == ["Control+a"]
+    assert key_combos(("ENTER",)) == ["Enter"] and key_combos(("Delete",)) == ["Delete"]
+    assert key_combos((Keys.CONTROL, Keys.SHIFT, "Delete")) == ["Control+Shift+Delete"]
 
 
 def test_pages_factory():

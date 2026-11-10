@@ -1,4 +1,4 @@
-"""Browser start and stop: Chromium version, chromedriver, profile, session, processes."""
+"""Browser start and stop: Chromium version, profile, session, processes."""
 import json
 import subprocess
 import sys
@@ -9,7 +9,7 @@ import pytest
 import yaml
 
 from sbtest import utils
-from sbtest.browser import driver_resolver as dr, version
+from sbtest.browser import version
 from sbtest.browser.profile import expand_dotted, MAX_PROFILE_DIR, Profile, profiles_root, SHORT_ROOT
 from sbtest.browser.session import BrowserCrashed, BrowserSession, merge_feature_switches
 from sbtest.browser.version import chromium_version_from, parse_chromium_version
@@ -34,37 +34,6 @@ def test_chromium_version_when_browser_field_holds_the_product_version():
     assert chromium_version_from({"Browser": "Chrome/31.0.1.21",
                                   "User-Agent": ua.format("157.0.0.0")}) == "157.0.0.0"
     assert chromium_version_from({"Browser": "", "User-Agent": ua.format("157.0.0.0")}) == "157.0.0.0"
-
-
-def test_download_uses_curl_only(monkeypatch):
-    calls = []
-    monkeypatch.setattr(dr, "curl_exe", lambda: "curl.exe")
-    monkeypatch.setattr(dr, "_curl", lambda c, url, t: calls.append(("curl", url)) or b"zip")
-    assert dr.fetch("https://x/a.zip") == b"zip" and calls == [("curl", "https://x/a.zip")]
-    monkeypatch.setattr(dr, "curl_exe", lambda: None)
-    with pytest.raises(RuntimeError, match="no curl.exe"):
-        dr.fetch("https://x/a.zip")
-
-
-def test_driver_is_the_latest_of_the_chromium_major(monkeypatch):
-    listing = {"milestones": {"157": {"version": "157.0.7900.40", "downloads": {"chromedriver": [
-        {"platform": "win64", "url": "https://x/157/win64.zip"}]}}}}
-    monkeypatch.setattr(dr, "_get_json", lambda url: listing)
-    assert dr.chromedriver_url("157.0.0.0", "win64") == ("157.0.7900.40", "https://x/157/win64.zip")
-    with pytest.raises(RuntimeError, match="No chromedriver 158"):
-        dr.chromedriver_url("158.0.1.2", "win64")
-
-
-def test_driver_major_checked_against_chromium(tmp_path, monkeypatch):
-    local = tmp_path / "157" / dr.EXE_NAME
-    local.parent.mkdir()
-    local.write_text("")
-    monkeypatch.setattr(dr, "driver_version", lambda p: "148.0.7778.97")
-    with pytest.raises(RuntimeError, match="version 148.*Chromium 157.*chromedriver 157"):
-        dr.resolve_chromedriver("", "157.0.0.0", drivers_dir=tmp_path)
-    assert dr.resolve_chromedriver(str(local), "157.0.0.0") == str(local)   # configured: warning only
-    monkeypatch.setattr(dr, "driver_version", lambda p: "157.0.7900.2")
-    assert dr.resolve_chromedriver("", "157.0.0.0", drivers_dir=tmp_path) == str(local)
 
 
 def test_profile_prefs_merge(tmp_path):
@@ -106,11 +75,18 @@ def test_start_page_url_and_first_open_skips_the_reload(tmp_path):
     cfg = load_config(config_dir=tmp_path)
     s = BrowserSession(cfg, out_dir=tmp_path)
     assert s._start_url() == "chrome://history"
-    assert BrowserSession(cfg, out_dir=tmp_path, start_page="newtab")._preload_start_page(1) == ""  # blocked
+    blocked = BrowserSession(cfg, out_dir=tmp_path, start_page="newtab")
+    blocked.web = SimpleNamespace(preloaded_url="")
+    blocked._open_start_page()        # DevTools is blocked on the home page: not opened
+    assert blocked.web.preloaded_url == ""
 
     gets = []
     nav = NavigationMixin()
-    nav.driver = SimpleNamespace(current_url="chrome://history/", get=gets.append)
+    nav.page = SimpleNamespace(url="chrome://history/")
+    nav._frames = []
+    nav.page_load_timeout = 30
+    nav._goto = lambda url: url
+    nav.run = lambda url, *a, **k: gets.append(url)
     nav.wait_ready = lambda: None
     nav.preloaded_url = "chrome://history"
     nav.open("chrome://history")      # already there: no reload
@@ -131,7 +107,11 @@ def test_restart_reports_a_crash_while_closing(tmp_path, code, crashed):
     s = BrowserSession(load_config(config_dir=tmp_path), out_dir=tmp_path)
     # stands in for the browser: exits with `code` once Browser.close was sent
     s._attach_proc = subprocess.Popen([sys.executable, "-c", f"raise SystemExit({code})"])
-    s.driver = SimpleNamespace(execute_cdp_cmd=lambda cmd, params: None, quit=lambda: None)
+
+    async def gone():                 # the connection drops while the browser closes
+        raise RuntimeError("connection closed")
+
+    s.browser = SimpleNamespace(new_browser_cdp_session=gone, close=gone, is_connected=lambda: False)
     started = []
     s.start = lambda: started.append(1) or s
     if crashed:

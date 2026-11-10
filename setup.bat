@@ -1,6 +1,6 @@
 @echo off
 rem Prepare a Windows test machine: install Python packages, then check the machine (doctor:
-rem browser exe, Chromium version, chromedriver - downloaded if missing -, browser start, UI).
+rem browser exe, browser start and DevTools connection, internal pages, browser UI).
 rem   setup.bat                                        exe from config\local.yaml (asked the first time)
 rem   setup.bat --exe "C:\build\SamsungInternet.exe"   check that build
 rem   setup.bat --exe "C:\build\SamsungInternet.exe" --save   ...and make it the default (config\local.yaml)

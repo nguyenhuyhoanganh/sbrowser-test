@@ -1,6 +1,7 @@
-"""Samsung add-ons page (internet://extensions; WebDriver URL chrome://extensions, title "Add-ons").
+"""Samsung add-ons page (internet://extensions; opened as chrome://extensions, title "Add-ons").
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
+ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
 
 How it differs from Chromium:
 - "Developer mode" is a si-toggle in the LEFT side bar (#devModeToggle); turning it on shows
@@ -12,10 +13,10 @@ How it differs from Chromium:
 """
 from __future__ import annotations
 
-from selenium.common.exceptions import StaleElementReferenceException
-from selenium.webdriver.remote.webelement import WebElement
+from playwright.async_api import Error as PlaywrightError
 
 from sbtest.pages.base import BasePage
+from sbtest.web import Element
 
 _JS_CARD_NAMES = r"""
 return arguments[0].map(c => {
@@ -39,23 +40,23 @@ class ExtensionsPage(BasePage):
     # -- read ----------------------------------------------------------------------
     def info(self) -> list[dict]:
         """``[{id, name, version, state, type, location}]`` straight from the extension system."""
-        return self.web.driver.execute_async_script(
-            "const done = arguments[arguments.length - 1];"
-            "chrome.developerPrivate.getExtensionsInfo({includeDisabled: true, includeTerminated: true},"
+        return self.web.js(
+            "return new Promise(done => chrome.developerPrivate.getExtensionsInfo("
+            "{includeDisabled: true, includeTerminated: true},"
             " l => done(l.map(e => ({id: e.id, name: e.name, version: e.version, state: e.state,"
-            " type: e.type, location: e.location}))));")
+            " type: e.type, location: e.location})))));")
 
     def names(self) -> list[str]:
         """Names shown as cards in the UI (one read: the list re-renders while it filters)."""
         for attempt in range(5):
             try:
                 return self.web.js(_JS_CARD_NAMES, self.web.find_all(self.ITEMS))
-            except StaleElementReferenceException:
+            except PlaywrightError:
                 if attempt == 4:
                     raise
         return []
 
-    def item(self, name: str, timeout: float | None = None) -> WebElement:
+    def item(self, name: str, timeout: float | None = None) -> Element:
         """The card of add-on ``name``."""
         def _f():
             for i in self.web.find_all(self.ITEMS):
@@ -65,7 +66,7 @@ class ExtensionsPage(BasePage):
         return self.web.wait_until(_f, timeout, f"extension card {name!r}")
 
     def ext_id(self, name: str) -> str:
-        return self.item(name).get_attribute("id")
+        return self.web.attr(self.item(name), "id")
 
     def is_enabled(self, name: str) -> bool:
         """State of the card's on/off toggle."""

@@ -1,27 +1,31 @@
-"""One locator syntax for everything, including Shadow DOM (all chrome:// pages use it).
+"""One locator syntax for everything, including Shadow DOM (all internal pages use it).
 
-A locator is a string with an optional prefix, or a Selenium ``(By, value)`` tuple:
+A locator is a string with an optional prefix; it is turned into a Playwright selector:
 
-    "#id .class"                      CSS (default)
+    "#id .class"                      CSS (default). CSS pierces open shadow roots.
     "css=button.primary"              CSS
-    "xpath=//div[@id='x']"            XPath (also any string starting with "/" or "(")
+    "xpath=//div[@id='x']"            XPath (also any string starting with "/" or "("); light DOM only
     "id=search"  "name=q"             by id / name attribute
-    "bookmarks-app >>> #searchInput"  shadow path: each ">>>" steps into the shadowRoot
-                                      of the element matched so far ("deep=" prefix optional)
-    "deepcss=cr-toast"                CSS searched inside *every* shadow root (slower, handy)
-    "text=Delete"                     element whose visible (composed) text is exactly "Delete"
+    "bookmarks-app >>> #searchInput"  path: each ">>>" continues inside the element matched so
+                                      far, its shadow root included ("deep=" prefix optional)
+    "deepcss=si-snack-bar"            same as plain CSS (kept: it says "anywhere, any shadow root")
+    "text=Delete"                     smallest element whose text is exactly "Delete"
     "text~=Deleted"                   element whose text contains "Deleted" (case-insensitive)
     "aria=Search bookmarks"           element whose aria-label / title / placeholder equals it
+    "role=button[name=\"Save\"]"      Playwright role selector (accessible role + name)
+    "pw=<selector>"                   any other Playwright selector, passed through as is
 
-``text=``, ``text~=`` and ``aria=`` also pierce shadow roots and return the *deepest*
-matching elements. Every API that takes a locator also accepts a WebElement.
+Every API that takes a locator also accepts an element (a Playwright ``ElementHandle``).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
-from selenium.webdriver.common.by import By
-from selenium.webdriver.remote.webelement import WebElement
+from playwright.async_api import ElementHandle
+
+#: what ``web.find`` returns and every ``web.*`` method accepts in place of a locator
+Element = ElementHandle
 
 # ---------------------------------------------------------------- shadow-aware JS
 _JS_COMMON = r"""
@@ -34,88 +38,6 @@ const visible = (el) => {
   return el.getClientRects().length > 0;
 };
 """
-
-JS_DEEP_PATH = _JS_COMMON + r"""
-const segs = arguments[0], start = arguments[1];
-let current = [start ? scopeOf(start) : document];
-for (let i = 0; i < segs.length; i++) {
-  const next = [];
-  for (const r of current) {
-    const scope = i === 0 ? r : scopeOf(r);
-    if (!scope || !scope.querySelectorAll) continue;
-    for (const el of scope.querySelectorAll(segs[i])) if (!next.includes(el)) next.push(el);
-  }
-  current = next;
-  if (!current.length) break;
-}
-return current;
-"""
-
-JS_DEEP_CSS = _JS_COMMON + r"""
-const sel = arguments[0], start = arguments[1];
-const out = [];
-const walk = (root) => {
-  if (!root || !root.querySelectorAll) return;
-  for (const el of root.querySelectorAll(sel)) out.push(el);
-  for (const el of root.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot);
-};
-walk(start ? scopeOf(start) : document);
-if (start && start.shadowRoot) {   // also the light DOM of the start element
-  for (const el of start.querySelectorAll(sel)) if (!out.includes(el)) out.push(el);
-}
-return out;
-"""
-
-# Single pass over the *composed* tree (shadow roots + slotted nodes). Returns the
-# deepest elements whose normalized text matches, so "text=Delete" yields the button,
-# not every ancestor that contains it.
-JS_DEEP_TEXT = _JS_COMMON + r"""
-const target = arguments[0], mode = arguments[1], start = arguments[2];
-const norm = (s) => s.replace(/\s+/g, ' ').trim();
-const t = mode === 'contains' ? target.toLowerCase() : target;
-const test = (s) => mode === 'contains' ? s.toLowerCase().includes(t) : s === t;
-const out = [];
-const kids = (n) => {
-  if (n.shadowRoot) return Array.from(n.shadowRoot.childNodes);
-  if (n.tagName === 'SLOT') {
-    const a = n.assignedNodes({flatten: true});
-    return a.length ? a : Array.from(n.childNodes);
-  }
-  return Array.from(n.childNodes);
-};
-const visit = (n) => {               // returns [text, matchedBelow]
-  if (n.nodeType === 3) return [n.nodeValue, false];
-  if (n.nodeType !== 1 && n.nodeType !== 11 && n.nodeType !== 9) return ['', false];
-  if (n.nodeType === 1 && SKIP.has(n.tagName)) return ['', false];
-  let text = '', below = false;
-  for (const c of kids(n)) { const [ct, cb] = visit(c); text += ct; below = below || cb; }
-  if (n.nodeType === 1) {
-    const block = /^(DIV|P|LI|TR|TD|TH|BR|H[1-6]|SECTION|ARTICLE)$/.test(n.tagName);
-    if (!below && test(norm(text)) && visible(n)) { out.push(n); below = true; }
-    if (block) text = ' ' + text + ' ';
-  }
-  return [text, below];
-};
-visit(start ? start : document.documentElement);
-return out;
-"""
-
-JS_DEEP_ARIA = _JS_COMMON + r"""
-const target = arguments[0], start = arguments[1];
-const out = [];
-const walk = (root) => {
-  for (const el of root.querySelectorAll('*')) {
-    for (const a of ['aria-label', 'title', 'placeholder', 'label']) {
-      if (el.getAttribute(a) === target) { out.push(el); break; }
-    }
-    if (el.shadowRoot) walk(el.shadowRoot);
-  }
-};
-walk(start ? scopeOf(start) : document);
-return out;
-"""
-
-JS_IS_VISIBLE = _JS_COMMON + "return visible(arguments[0]);"
 
 # composed (shadow-including) visible text of an element or the whole page
 JS_COMPOSED_TEXT = _JS_COMMON + r"""
@@ -145,30 +67,35 @@ return parts.join('').replace(/[ \t\r\f\v]+/g, ' ').replace(/ *\n */g, '\n').rep
 """
 
 
+
+# what a person reads in the element: innerText when it has no shadow root, else the composed text
+JS_TEXT = (
+    "const e0 = arguments[0];"
+    "if (e0 && !e0.shadowRoot && typeof e0.innerText === 'string') { const t = e0.innerText.trim(); if (t) return t; }\n"
+    + JS_COMPOSED_TEXT)
+
+
 @dataclass(frozen=True)
 class Locator:
-    kind: str  # css | xpath | id | name | deep | deepcss | text | textc | aria
+    kind: str  # css | xpath | id | name | deep | deepcss | text | textc | aria | role | pw
     value: str | tuple
 
     def __str__(self) -> str:
         return f"{self.kind}={self.value}"
 
 
+_PREFIXES = (("text~=", "textc"), ("text=", "text"), ("aria=", "aria"), ("deepcss=", "deepcss"), ("deep=", "deep"),
+             ("css=", "css"), ("xpath=", "xpath"), ("id=", "id"), ("name=", "name"), ("role=", "role"), ("pw=", "pw"))
+
+
 def parse(spec) -> Locator:
-    """Turn a locator string/tuple into a :class:`Locator`."""
+    """Turn a locator string into a :class:`Locator`."""
     if isinstance(spec, Locator):
         return spec
-    if isinstance(spec, tuple) and len(spec) == 2:
-        by, value = spec
-        mapping = {By.CSS_SELECTOR: "css", By.XPATH: "xpath", By.ID: "id", By.NAME: "name"}
-        if by in mapping:
-            return parse(f"{mapping[by]}={value}")
-        return Locator("by", (by, value))
     if not isinstance(spec, str) or not spec.strip():
         raise ValueError(f"Bad locator: {spec!r}")
     s = spec.strip()
-    for prefix, kind in (("text~=", "textc"), ("text=", "text"), ("aria=", "aria"), ("deepcss=", "deepcss"),
-                         ("deep=", "deep"), ("css=", "css"), ("xpath=", "xpath"), ("id=", "id"), ("name=", "name")):
+    for prefix, kind in _PREFIXES:
         if s.startswith(prefix):
             value = s[len(prefix):]
             if kind == "css" and ">>>" in value:
@@ -183,36 +110,40 @@ def parse(spec) -> Locator:
     return Locator("css", s)
 
 
-def find_all(driver, spec, within: WebElement | None = None) -> list[WebElement]:
-    """All elements matching ``spec`` (no waiting). ``within`` scopes the search."""
-    if isinstance(spec, WebElement):
-        return [spec]
+def _quoted(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def to_selector(spec, visible: bool = False) -> str:
+    """The Playwright selector of a locator; ``visible`` keeps only elements shown on the page."""
     loc = parse(spec)
-    ctx = within if within is not None else driver
-    if loc.kind == "css":
-        return ctx.find_elements(By.CSS_SELECTOR, loc.value)
-    if loc.kind == "xpath":
-        return ctx.find_elements(By.XPATH, loc.value)
-    if loc.kind == "id":
-        return ctx.find_elements(By.ID, loc.value)
-    if loc.kind == "name":
-        return ctx.find_elements(By.NAME, loc.value)
-    if loc.kind == "by":
-        return ctx.find_elements(*loc.value)
-    if loc.kind == "deep":
-        return driver.execute_script(JS_DEEP_PATH, list(loc.value), within) or []
-    if loc.kind == "deepcss":
-        return driver.execute_script(JS_DEEP_CSS, loc.value, within) or []
-    if loc.kind in ("text", "textc"):
-        mode = "contains" if loc.kind == "textc" else "exact"
-        return driver.execute_script(JS_DEEP_TEXT, loc.value, mode, within) or []
-    if loc.kind == "aria":
-        return driver.execute_script(JS_DEEP_ARIA, loc.value, within) or []
-    raise ValueError(f"Unknown locator kind: {loc.kind}")
+    v = loc.value
+    if loc.kind in ("css", "deepcss"):
+        sel = f"css={v}"
+    elif loc.kind == "deep":
+        sel = " >> ".join(f"css={seg}" for seg in v)
+    elif loc.kind == "xpath":
+        sel = f"xpath={v}"
+    elif loc.kind in ("id", "name"):
+        sel = f"css=[{loc.kind}={_quoted(v)}]"
+    elif loc.kind == "text":
+        sel = f"text={_quoted(v)}"
+    elif loc.kind == "textc":
+        sel = "text=/" + re.sub(r"([.*+?^${}()|\[\]\\/])", r"\\\1", v) + "/i"
+    elif loc.kind == "aria":
+        sel = "css=" + ", ".join(f"[{a}={_quoted(v)}]" for a in ("aria-label", "title", "placeholder", "label"))
+    elif loc.kind == "role":
+        sel = f"role={v}"
+    elif loc.kind == "pw":
+        sel = v
+    else:
+        raise ValueError(f"Unknown locator kind: {loc.kind}")
+    return sel + (" >> visible=true" if visible else "")
 
 
-def is_visible(driver, el: WebElement) -> bool:
-    try:
-        return bool(driver.execute_script(JS_IS_VISIBLE, el))
-    except Exception:  # noqa: BLE001 - stale / detached counts as not visible
-        return False
+async def find_all(root, spec, within: Element | None = None, visible: bool = False) -> list[Element]:
+    """All elements matching ``spec`` right now (no waiting), in document order. ``root`` is
+    the page or frame; ``within`` scopes the search to an element (its shadow root included)."""
+    if isinstance(spec, ElementHandle):
+        return [spec]
+    return await (within if within is not None else root).query_selector_all(to_selector(spec, visible))

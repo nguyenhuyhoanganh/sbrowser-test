@@ -39,14 +39,15 @@ class Results:
         return self.tests[nodeid]
 
     def note_browser(self, session) -> None:
-        """Browser/driver versions, taken once from the first session of the run."""
+        """Browser / Playwright versions, taken once from the first session of the run."""
         if "browser_version" in self.meta:
             return
         try:
-            caps = session.driver.capabilities
-            self.meta["browser_version"] = caps.get("browserVersion", "")
-            self.meta["chromedriver"] = (caps.get("chrome") or {}).get("chromedriverVersion", "").split(" ")[0]
-            self.meta["user_agent"] = session.web.js("return navigator.userAgent")
+            from importlib.metadata import version
+
+            self.meta["browser_version"] = session.info.get("chromium", "")
+            self.meta["user_agent"] = session.info.get("user_agent", "")
+            self.meta["playwright"] = version("playwright")
             self.meta["product_version"] = exe_version(session.exe)
         except Exception:  # noqa: BLE001 - informative only
             pass

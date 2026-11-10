@@ -1,8 +1,8 @@
 # sbtest
 
 Automated sanity tests for Samsung Internet (Samsung Browser) for Windows, a Chromium fork.
-Selenium drives web content and internal pages, pywinauto drives the browser UI and Windows
-dialogs. Each run produces a per-build report (HTML, Markdown) and the files to share it on
+Playwright (attached to the build over DevTools) drives web content and internal pages,
+pywinauto drives the browser UI and Windows dialogs. Each run produces a per-build report (HTML, Markdown) and the files to share it on
 Confluence or Jira.
 
 ![sbtest: the two agent skills, sbtest-author (write tests) and sbtest-run (run and report)](docs/sbtest-flows.png)
@@ -12,7 +12,8 @@ Confluence or Jira.
 - Windows 10/11, an unlocked desktop (native tests use the real mouse and keyboard)
 - Python 3.10+ (3.12+ recommended: its pip trusts the Windows certificate store)
 - The Samsung Browser build to test (`SamsungInternet.exe`)
-- Internet on first setup (packages, chromedriver); behind a proxy set `HTTPS_PROXY`
+- Internet on first setup (Python packages only: no browser or driver is downloaded); behind
+  a proxy set `HTTPS_PROXY`
 - A short repo folder such as `C:\sbtest` (browser profile paths are limited to 260 characters)
 
 ## Setup
@@ -23,8 +24,8 @@ Confluence or Jira.
 .\setup.bat --exe "C:\build\SamsungInternet.exe" --save   & rem ...and make it the default
 ```
 
-Installs the packages into `.venv`, then checks the machine: keyboard, Chromium version,
-chromedriver (downloaded when missing), browser start, internal pages, toolbar. It ends with
+Installs the packages into `.venv`, then checks the machine: keyboard, browser start and
+DevTools connection, internal pages, toolbar. It ends with
 `READY` or `NOT READY`; every `[FAIL]` line has a `fix:` line. Re-check only:
 `.venv\Scripts\python -m sbtest.tools.doctor`.
 
@@ -42,8 +43,9 @@ Add `--exe "<path>"` when setup used it without `--save`. Other options: `--nati
 tests that drive the browser UI) / `--no-native` (skip them), `--repeat 4` (4 runs in a row,
 stops at the first failure), `--reruns 1`, `--record` (a video of every test: browser windows,
 the running case step as a caption, clicks and typing framed in red), `--screenshot-steps`
-(the same as pictures: one before every click / typing, plus one per step), `--raw` (pytest's
-own output).
+(the same as pictures: one before every click / typing, plus one per step), `--trace` (a
+Playwright trace of every failed test: each web action with DOM snapshot and screenshot),
+`--raw` (pytest's own output).
 
 While tests run: keep hands off the mouse and keyboard, keep the keyboard on English (US) with
 Vietnamese input tools in English mode, and keep the screen unlocked.
@@ -59,7 +61,9 @@ Vietnamese input tools in English mode, and keep the screen unlocked.
   `--screenshot-steps` also the videos / step pictures of failed cases - `--share-media all`
   for every case, `none` for none)
 - `videos\<test>.mp4` - `--record` videos (also played in the report)
-- `failures\<test>\` - `failure.txt`, screenshots, DOM and UI Automation dumps
+- `traces\<test>.zip` - `--trace`: open with `python -m playwright show-trace <zip>`
+- `failures\<test>\` - `failure.txt`, screenshots, DOM, accessibility tree, console and UI
+  Automation dumps
 
 Later: `python -m sbtest.tools.summary` (the result again; `--markdown` for a block to paste),
 `python -m sbtest.tools.report --open` / `--zip` (open the report / pack it to send),
@@ -67,8 +71,8 @@ Later: `python -m sbtest.tools.summary` (the result again; `--markdown` for a bl
 
 ## New Chromium merge
 
-Run `setup.bat` with the new exe: chromedriver follows the build's Chromium version
-automatically. Then `run.py --all`; a test that fails because labels or markup changed is fixed
+Run `setup.bat` with the new exe (nothing has to match its Chromium version: Playwright
+talks DevTools to whatever the build is). Then `run.py --all`; a test that fails because labels or markup changed is fixed
 in the page object (`sbtest\pages\`) or `config\native_ui.yaml`, not in the test.
 
 ## Layout
@@ -77,15 +81,17 @@ in the page object (`sbtest\pages\`) or `config\native_ui.yaml`, not in the test
 config/          settings: default.yaml, native_ui.yaml (browser UI names), local.yaml (this machine)
 sbtest/          framework: browser, web, native, pages, reporting, tools
 tests/features/  one folder per feature: case docs (*.md) + their tests; TESTCASES.md (generated, git-ignored)
-tests/framework/ self-tests without a browser: python -m pytest tests/framework -q
+tests/framework/ self-tests: python -m pytest tests/framework -q (test_live.py drives a plain
+                 Chromium headless when one is installed, else it is skipped)
 resources/       test data, sample add-on, profile templates, local test site
-artifacts/       output of runs and tools, downloaded chromedriver (git-ignored)
+artifacts/       output of runs and tools (git-ignored)
 .agents/skills/  agent skills (Agent Skills format)
 ```
 
 ## Agents
 
-Everything an agent needs is in the two skills of `.agents/skills/` (Agent Skills format):
+`AGENTS.md` is the entry point for coding agents (`CLAUDE.md` points to it). Everything else
+an agent needs is in the two skills of `.agents/skills/` (Agent Skills format):
 `sbtest-author` (cases in, stable tests out: intake, explore the real build, write, repair)
 and `sbtest-run` (guided build check: scope, run, triage, result to Confluence / Jira / a zip;
 `/sbtest-run`). Both start the same way: ask for the exe path, run `setup.bat --save`, then ask

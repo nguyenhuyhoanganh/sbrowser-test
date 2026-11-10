@@ -3,18 +3,21 @@ from __future__ import annotations
 
 import base64
 import os
-import threading
+import time
 from pathlib import Path
 
 from sbtest.utils import log, slug
 
-#: seconds allowed for the WebDriver part of the failure evidence
+#: seconds allowed for the page part of the failure evidence (a page blocked by a modal
+#: browser UI answers nothing: each command gives up after its own timeout, the rest is skipped)
 WEB_EVIDENCE_BUDGET = 30
+#: seconds for one evidence command
+WEB_EVIDENCE_STEP = 10
 
 
 def screen_grab(path: Path, session=None, cfg=None) -> Path:
     """What the user sees: the browser's windows (frame + native bubbles/dialogs), which a
-    WebDriver screenshot cannot show. ``report.screen_capture: screen``, or no browser window
+    screenshot of the tab cannot show. ``report.screen_capture: screen``, or no browser window
     to find -> every monitor."""
     from PIL import ImageGrab
 
@@ -93,16 +96,14 @@ def _grab(session, rec: dict, need_viewport: bool) -> tuple | None:
             return img, {"origin": box[:2], "viewport": viewport}
         except Exception as e:  # noqa: BLE001 - fall back to the tab picture
             log.debug("step screen grab failed: %s", e)
-    if session.web.has_alert():
-        return None
-    img = Image.open(BytesIO(session.driver.get_screenshot_as_png()))
+    img = Image.open(BytesIO(session.web.screenshot_bytes()))
     return img, {"origin": (0, 0), "viewport": (0, 0), "web_only": True}
 
 
 def action_picture(session, run_dir: Path, nodeid: str, rec: dict, n: int, i: int, mark: dict) -> None:
     """Picture taken right BEFORE interaction ``i`` of step ``n``, with a red frame on its
     target (the menu or dialog is still open then) -> ``steps/<test>/NN-I_<kind>.jpg``."""
-    if session is None or session.driver is None:
+    if session is None or not session.alive:
         return
     grabbed = _grab(session, rec, need_viewport=bool(mark.get("web")))
     if grabbed is None:
@@ -115,7 +116,7 @@ def action_picture(session, run_dir: Path, nodeid: str, rec: dict, n: int, i: in
 def step_screenshot(session, run_dir: Path, nodeid: str, rec: dict, n: int) -> None:
     """Picture of how step ``n`` ended -> ``steps/<test>/NN_<status>_<step>.jpg`` (its
     interactions have their own pictures, see action_picture)."""
-    if session is None or session.driver is None:
+    if session is None or not session.alive:
         return
     grabbed = _grab(session, rec, need_viewport=False)
     if grabbed is None:
@@ -187,7 +188,7 @@ def result_screenshot(session, cfg, run_dir: Path, nodeid: str) -> str:
     try:
         if can_grab_screen(cfg):
             return str(screen_grab(out, session, cfg))
-        if session is not None and session.driver is not None and not session.web.has_alert():
+        if session is not None and session.alive:
             return str(session.web.screenshot(out))
     except Exception as e:  # noqa: BLE001 - a missing picture must not fail the test
         log.warning("result screenshot failed: %s", e)
@@ -207,49 +208,61 @@ def collect_failure(session, cfg, run_dir: Path, res: dict) -> tuple[Path, list[
         except Exception as e:  # noqa: BLE001 - evidence is best effort
             log.warning("evidence %s failed: %s", name, e)
 
-    alive = session is not None and session.driver is not None
+    alive = session is not None and session.alive
     # OS-level evidence first: it never depends on the page (a print preview or another
-    # modal browser UI can block every WebDriver command)
+    # modal browser UI can block every command sent to the page)
     if can_grab_screen(cfg) and cfg.get("report.screenshot_on_failure", True):
         _try("screen.png", lambda: screen_grab(out / "screen.png", session, cfg))
     if alive and session.native is not None and cfg.get("report.uia_on_failure", True):
         _try("uia.txt", lambda: session.native.dump(out / "uia.txt"))
 
-    def _web_evidence():
-        if session.web.has_alert():
-            _try("alert.txt", lambda: (out / "alert.txt").write_text(session.web.alert_text(timeout=1), encoding="utf-8"))
-            return
-        web = session.web
-        if cfg.get("report.highlight_on_failure", True):
-            web.highlight()
-        if cfg.get("report.screenshot_on_failure", True):
-            _try("page.png", lambda: web.screenshot(out / "page.png"))
-        if cfg.get("report.dom_on_failure", True):
-            from sbtest.tools.dom import dump_dom
-
-            _try("dom.txt", lambda: (out / "dom.txt").write_text(
-                f"# URL: {web.url}\n# TITLE: {web.title}\n# TABS: {len(web.tabs)}\n" + dump_dom(web), encoding="utf-8"))
-            _try("page.html", lambda: (out / "page.html").write_text(session.driver.page_source, encoding="utf-8"))
-
+    target = None
     if alive:
-        worker = threading.Thread(target=_web_evidence, daemon=True)
-        worker.start()
-        worker.join(WEB_EVIDENCE_BUDGET)
-        if worker.is_alive():
-            alive = False  # the page does not answer; do not touch the driver again here
-            log.warning("web evidence skipped: page unresponsive after %ss (modal browser UI?)", WEB_EVIDENCE_BUDGET)
-            (out / "page_unresponsive.txt").write_text(
-                "WebDriver did not answer while collecting evidence: a modal browser UI (print preview, "
-                "a native dialog) is probably blocking the page. See screen.png / uia.txt.\n", encoding="utf-8")
-            saved.append("page_unresponsive.txt")
+        web = session.web
+        target = web.last_target
+        if target and target[0] == "<element>":
+            try:  # an element was passed instead of a locator: describe it by its markup
+                outer = web.run(target[1].evaluate("e => e.outerHTML"), WEB_EVIDENCE_STEP) or ""
+                target = (" ".join(outer.split())[:160], target[1])
+            except Exception:  # noqa: BLE001 - detached element / page gone
+                target = ("<element passed directly, no longer on the page>", target[1])
+        deadline = time.monotonic() + WEB_EVIDENCE_BUDGET
+        saved_timeout, web.command_timeout = web.command_timeout, WEB_EVIDENCE_STEP
 
-    target = session.web.last_target if alive else None
-    if target and target[1] is not None and target[0].startswith("<selenium"):
-        try:  # an element was passed instead of a locator: describe it by its markup
-            outer = session.web.js("return arguments[0].outerHTML", target[1]) or ""
-            target = (" ".join(outer.split())[:160], target[1])
-        except Exception:  # noqa: BLE001 - stale element
-            target = ("<element passed directly, now stale>", target[1])
+        def _web(name, fn):
+            if time.monotonic() < deadline:
+                _try(name, fn)
+
+        def _write(name, text_fn):
+            _web(name, lambda: (out / name).write_text(text_fn(), encoding="utf-8"))
+
+        try:
+            if cfg.get("report.highlight_on_failure", True):
+                web.highlight()
+            if cfg.get("report.screenshot_on_failure", True):
+                _web("page.png", lambda: web.screenshot(out / "page.png"))
+            if cfg.get("report.dom_on_failure", True):
+                from sbtest.tools.dom import dump_dom
+
+                _write("dom.txt", lambda: f"# URL: {web.url}\n# TITLE: {web.title}\n# TABS: {len(web.tabs)}\n"
+                                          + dump_dom(web))
+                # the accessibility tree: roles, names and states - the short view of the page
+                _write("aria.yaml", lambda: f"# URL: {web.url}\n" + web.aria_snapshot())
+                _write("page.html", web.html)
+        finally:
+            web.command_timeout = saved_timeout
+        if "page.png" not in saved and "dom.txt" not in saved:
+            log.warning("page evidence missing: the page did not answer (modal browser UI?)")
+            (out / "page_unresponsive.txt").write_text(
+                "The page did not answer while collecting evidence: a modal browser UI (print preview, "
+                "a native dialog) is probably blocking it. See screen.png / uia.txt.\n", encoding="utf-8")
+            saved.append("page_unresponsive.txt")
+        notes = [f"[dialog] {d['type']} {d['message']!r} -> {d['answer']}"
+                 + ("" if d["expected"] else "  (not expected by the test)") for d in web.dialogs] + web.console
+        if notes:   # JavaScript dialogs, console errors / warnings and uncaught page errors of the test
+            (out / "console.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")
+            saved.append("console.txt")
+
     lines = [
         f"test: {res['nodeid']}",
         f"cases: {', '.join(res['cases']) or '-'}",

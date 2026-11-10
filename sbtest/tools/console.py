@@ -75,6 +75,6 @@ def log_to_file(path: Path, verbose: bool = False) -> None:
     to_console.setFormatter(logging.Formatter("         note: %(message)s"))
     root.addHandler(to_file)
     root.addHandler(to_console)
-    # third-party chatter (selenium, urllib3, pywinauto) stays in the file
-    for name in ("selenium", "urllib3", "comtypes", "pywinauto", "PIL"):
+    # third-party chatter (asyncio, pywinauto) stays in the file
+    for name in ("asyncio", "comtypes", "pywinauto", "PIL"):
         logging.getLogger(name).setLevel(logging.WARNING)

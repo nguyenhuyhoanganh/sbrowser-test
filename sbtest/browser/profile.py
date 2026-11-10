@@ -34,7 +34,7 @@ def expand_dotted(prefs: dict) -> dict:
 
 # Chromium writes files ~110 characters deep inside a profile (IndexedDB, Service Worker
 # caches, extension settings) and does not use Windows long paths: a profile folder longer
-# than this makes the browser show "Profile error occurred" and stop answering WebDriver.
+# than this makes the browser show "Profile error occurred" and stop answering DevTools.
 MAX_PROFILE_DIR = 140   # 149 worked, 236 failed (Samsung 31): keep a margin
 SHORT_ROOT = Path(os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()) / "sbtest" / "profiles"
 

@@ -7,8 +7,7 @@ browser:
   # list and add to it
 
 # pages:
-#   scheme: internet     # only if your build accepts internet:// from WebDriver (public 31.0 does not)
+#   scheme: internet     # only if your build accepts internet:// over DevTools (public 31.0 does not)
 
 network:
   # browser_proxy: http://proxy.company.com:8080
-  # download_proxy: http://proxy.company.com:8080

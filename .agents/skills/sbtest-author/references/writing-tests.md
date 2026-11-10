@@ -53,7 +53,7 @@ def test_delete_and_undo(pages):
   URL / title, text of the snack bar or toast.
 - Act only through `web.*`, `native.*`, page objects and dialog helpers: they record each
   interaction, so `--screenshot-steps` and `--record` frame it. A raw `click_input()`,
-  `invoke()`, `send_keys` or `ActionChains` gets no frame.
+  `invoke()`, `send_keys` or a Playwright call on `web.page` gets no frame.
 - Keep a test under ~60 s; longer -> `@pytest.mark.slow`.
 - No cleanup of browser data: each test has its own profile. Clean only what you created
   outside it (files outside `tmp_path` / `downloads_dir`, windows of other apps).
@@ -76,7 +76,7 @@ from sbtest.web import Keys                       # web.press(Keys.CONTROL, "a")
 | `native` | `NativeBrowser`: the browser's own UI and Windows (`references/native-ui.md`); the test is skipped where native UI cannot work |
 | `pages` | page objects: `pages.bookmarks`, `pages.history`, `pages.downloads`, `pages.extensions`, `pages.webstore`; `pages.of(other_web)` after a restart |
 | `site` | local web server: `site.page("Title")`, `site.url("/upload.html")`, `site.download("a.txt", 2048)` |
-| `session` | `BrowserSession`: `restart()`, `profile`, `driver`, `downloads_dir` |
+| `session` | `BrowserSession`: `restart()`, `profile`, `info` (Chromium version), `downloads_dir` |
 | `downloads_dir` | download folder of this profile |
 | `data` | `data("addons")` -> `resources/data/addons.yaml` with `{site}` resolved |
 | `cfg` | configuration: `cfg.page_url("history")`, `cfg.display_url("history")` |
@@ -107,7 +107,7 @@ Everything is local - no internet.
 @pytest.mark.browser(extensions=["sample_addon"])             # resources/extensions/<dir>, unpacked
 @pytest.mark.browser(args=["--start-maximized"])              # extra switches
 @pytest.mark.browser(profile="with_passwords")                # copy resources/profiles/<name>/ first
-@pytest.mark.browser(start_page="history")                   # first tab opens it while chromedriver attaches
+@pytest.mark.browser(start_page="history")                   # first tab opens it right after the start
 ```
 
 A test with `browser(...)` always gets its own fresh browser.

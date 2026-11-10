@@ -1,5 +1,6 @@
-from sbtest.web.locators import parse, find_all
+"""Web layer: everything inside web content (Playwright, attached to the session's browser)."""
+from sbtest.web.actions import Keys
+from sbtest.web.locators import Element
 from sbtest.web.web import Web
-from selenium.webdriver.common.keys import Keys
 
-__all__ = ["Web", "Keys", "parse", "find_all"]
+__all__ = ["Element", "Keys", "Web"]

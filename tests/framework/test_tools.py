@@ -12,12 +12,12 @@ from sbtest.tools.summary import collect
 
 def test_setup_saves_the_exe_keeping_local_yaml(tmp_path):
     example = tmp_path / "local.example.yaml"
-    example.write_text("# comment kept\nbrowser:\n  exe: 'C:/build/SamsungInternet.exe'\n  # chromedriver: x\n"
+    example.write_text("# comment kept\nbrowser:\n  exe: 'C:/build/SamsungInternet.exe'\n  # headless: x\n"
                        "network:\n  # download_proxy: y\n", encoding="utf-8")
     local = tmp_path / "local.yaml"
     save_exe(r"D:\sb\SamsungInternet.exe", local)          # new file: starts from the example
     text = local.read_text(encoding="utf-8")
-    assert "# comment kept" in text and "# chromedriver: x" in text
+    assert "# comment kept" in text and "# headless: x" in text
     assert yaml.safe_load(text)["browser"]["exe"] == r"D:\sb\SamsungInternet.exe"
     save_exe(r"E:\new\SamsungInternet.exe", local)         # existing file: only that line changes
     assert yaml.safe_load(local.read_text(encoding="utf-8"))["browser"]["exe"] == r"E:\new\SamsungInternet.exe"

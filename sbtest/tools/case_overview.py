@@ -113,7 +113,7 @@ def render(results: dict[str, str] | None) -> str:
         w(f"| {name} | {prefix} | " + " | ".join(str(x) for x in row) + " |")
     w("| **Total** | | " + " | ".join(f"**{tot[i]}**" for i in range(4)) + " |")
     w("")
-    w("- **Type** `web`: page content only (Selenium); `native`: also the browser UI or Windows dialogs (pywinauto).")
+    w("- **Type** `web`: page content only (Playwright); `native`: also the browser UI or Windows dialogs (pywinauto).")
     w("- **Sanity**: part of the quick pass (`python run.py --sanity`).")
     if results is not None:
         w("- **Result**: the latest run that included the case, on the machine that generated this file.")

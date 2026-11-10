@@ -1,5 +1,5 @@
 """Second half of setup.bat (the first half installs Python packages): make sure the browser
-exe is configured and check the machine (doctor, which also gets chromedriver). Running the
+exe is configured and check the machine (doctor). Running the
 tests is a separate command: ``python run.py ...``.
 
     setup.bat                                        install + check (exe from config/local.yaml)

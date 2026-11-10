@@ -11,12 +11,13 @@ Samsung rewrote the internal pages with its own component set; compared with ups
     cr-checkbox per row           si-select (round check box at the start of each row)
     cr-toggle                     si-toggle
 
-STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151).
+STATUS: verified on Samsung Browser 31.0.1.40 (Chromium 151) with the Selenium web layer;
+ported to Playwright since and not run on a Samsung build yet - run the feature before trusting it.
 """
 from __future__ import annotations
 
-from selenium.webdriver.remote.webelement import WebElement
 
+from sbtest.web import Element
 from sbtest.web.web import Web
 
 
@@ -139,15 +140,15 @@ class BasePage:
         return self.web.url.startswith(self.url)
 
     # -- find by text ------------------------------------------------------------------
-    def find_by_text(self, css: str, text: str, contains: bool = False, within: WebElement | None = None,
-                     timeout: float | None = None) -> WebElement:
+    def find_by_text(self, css: str, text: str, contains: bool = False, within: Element | None = None,
+                     timeout: float | None = None) -> Element:
         """Visible element of ``css`` (searched in all shadow roots) whose text is ``text``."""
         return self.web.wait_until(
             lambda: (self.web.js(_JS_VISIBLE_BY_TEXT, css, text, contains, within) or [None])[0],
             timeout, f"{css} with text {text!r}")
 
     def click_text(self, text: str, css: str = "button, cr-button, a, [role=button], [role=menuitem], .dropdown-item",
-                   contains: bool = False, within: WebElement | None = None) -> None:
+                   contains: bool = False, within: Element | None = None) -> None:
         self.web.click(self.find_by_text(css, text, contains, within))
 
     # -- side bar: search and filters ---------------------------------------------------
@@ -173,7 +174,7 @@ class BasePage:
         self.web.click(self.web.wait_until(_find, message=f"side bar entry {text!r}"))
 
     # -- toolbar (si-toolbar-button) ------------------------------------------------------
-    def toolbar_button(self, label: str) -> WebElement:
+    def toolbar_button(self, label: str) -> Element:
         """Toolbar button by its label (``Edit``, ``Delete``, ``Create folder``, ``Load Unpacked``...)."""
         return self.web.find(f"deepcss=[role=button][aria-label={q(label)}]", within=self.web.find(self.TOOLBAR))
 
@@ -223,7 +224,7 @@ class BasePage:
         return match
 
     # -- snack bar (si-snack-bar: "1 bookmark deleted" [Undo]) ------------------------------
-    def toast_element(self) -> WebElement | None:
+    def toast_element(self) -> Element | None:
         """The snack bar shown now, or None."""
         for t in self.web.find_all(self.TOAST, visible=True):
             return t
@@ -244,7 +245,7 @@ class BasePage:
     def has_dialog(self) -> bool:
         return bool(self.web.js(_JS_OPEN_SI_DIALOG))
 
-    def open_dialog(self, timeout: float | None = None) -> WebElement:
+    def open_dialog(self, timeout: float | None = None) -> Element:
         """Wait for an open si-dialog and return it."""
         return self.web.wait_until(lambda: self.web.js(_JS_OPEN_SI_DIALOG), timeout, "open si-dialog")
 
@@ -252,7 +253,7 @@ class BasePage:
         return self.web.js("return (arguments[0].innerText || arguments[0].textContent || '').trim()",
                            self.open_dialog())
 
-    def dialog_input(self, input_id: str) -> WebElement:
+    def dialog_input(self, input_id: str) -> Element:
         """Inner <input> of an si-input in the open dialog, e.g. ``dialog_input("name")``."""
         return self.web.find(f"deep=#{input_id} >>> #input", within=self._dialog_host())
 
@@ -293,7 +294,7 @@ class BasePage:
             return label
         raise LookupError(f"none of {labels} in dialog: {self.dialog_text()!r}")
 
-    def _dialog_host(self) -> WebElement:
+    def _dialog_host(self) -> Element:
         """Component that owns the open si-dialog (its inputs/buttons live in the same shadow root)."""
         return self.web.js("return arguments[0].getRootNode().host || arguments[0].parentElement",
                            self.open_dialog())

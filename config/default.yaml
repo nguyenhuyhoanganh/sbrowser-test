@@ -5,21 +5,13 @@
 browser:
   # Path to SamsungInternet.exe - set it in config/local.yaml (env: SB_EXE, flag: --exe)
   exe: ""
-  # "attach": we start the exe with --remote-debugging-port and chromedriver attaches.
-  #           Needed for Samsung Browser: chromedriver hangs when it launches the exe itself.
-  # "launch": chromedriver starts the exe.
-  mode: attach
-  # Empty = the latest chromedriver of the build's Chromium major, downloaded once into
-  # artifacts/drivers/<major>/. A path here (env: SB_DRIVER, flag: --driver) is only for a
-  # machine that cannot download; normally leave it empty.
-  chromedriver: ""
-  # Empty = read from the build (its User-Agent). Set only to override a wrong detection.
-  chromium_version: ""
+  # We start the exe with --remote-debugging-port and Playwright attaches to it over DevTools:
+  # no driver binary, nothing to match with the build's Chromium version.
   headless: false
-  # Page the first tab opens right after start, while chromedriver attaches (attach mode):
-  # a `pages` name (history, bookmarks...) or a URL; "" = stay on about:blank. The browser
-  # starts on about:blank anyway (the command line cannot open chrome:// pages) and the home
-  # page (newtab) cannot be used (Samsung blocks DevTools there). Per test: browser(start_page=...).
+  # Page the first tab opens right after start, without waiting for it: a `pages` name
+  # (history, bookmarks...) or a URL; "" = stay on about:blank. The browser starts on
+  # about:blank anyway (the command line cannot open chrome:// pages) and the home page
+  # (newtab) cannot be used (Samsung blocks DevTools there). Per test: browser(start_page=...).
   start_page: ""
   window_size: [1400, 900]
   # Extra command line switches for the browser.
@@ -35,8 +27,6 @@ browser:
     # hidden and internal pages render no rows (several --disable-features are merged into one)
     - --disable-backgrounding-occluded-windows
     - --disable-features=CalculateNativeWinOcclusion
-  # Removes the "controlled by automated test software" infobar.
-  exclude_switches: [enable-automation]
   # Preferences merged into Default/Preferences of every fresh profile.
   prefs:
     intl.accept_languages: en-US,en
@@ -51,8 +41,10 @@ browser:
   keep_profile: false
 
 timeouts:
-  page_load: 30     # seconds, driver page load timeout
+  page_load: 30     # seconds, page load timeout of web.open
   default: 10       # default explicit wait
+  action: 5         # a click / typing waits this long for its element to be visible, still and enabled
+  command: 30       # any single command to the page; a page blocked by a modal browser UI fails after it
   long: 30          # downloads, heavy pages
   poll: 0.2         # poll interval for waits
   native: 10        # pywinauto window/dialog waits
@@ -70,8 +62,8 @@ server:
   host: 127.0.0.1
   port: 0                     # 0 = random free port
 
-# Internal pages. The address bar SHOWS internet://bookmarks, but WebDriver/CDP navigation
-# only accepts chrome://bookmarks (driver.get("internet://...") stays on about:blank).
+# Internal pages. The address bar SHOWS internet://bookmarks, but navigation over DevTools
+# only accepts chrome://bookmarks (web.open("internet://...") stays on about:blank).
 # Typing internet://... into the omnibox (native.navigate) works too.
 pages:
   scheme: chrome
@@ -116,17 +108,21 @@ report:
   # a picture before every interaction (target framed in red) + one per step (flag: --screenshot-steps)
   screenshot_steps: false
   # a video per test instead of pictures: browser windows, step caption, framed interactions
-  # (videos/<test>.mp4, in the report; shared like the step pictures; flag: --record)
+  # (videos/<test>.mp4, in the report; shared like the step pictures; flag: --record).
+  # Where the screen cannot be recorded (headless, not Windows) the current tab is recorded.
   record_video: false
+  # Playwright trace per test (traces/<test>.zip: every web action with DOM snapshots,
+  # screenshots, console and network): off | failed (failed tests only) | all
+  # (flag: run.py --trace, pytest --pw-trace)
+  # Open one: python -m playwright show-trace <file>  (or drop it on trace.playwright.dev)
+  trace: off
   # cases whose videos / step pictures go in the files shared on Confluence or Jira
   # (share/attachments/): failed (failed/error cases only), all, none
   # (a full run with step pictures is ~280 pictures / ~22 MB; flag: --share-media)
   share_media: failed
 
 # Company proxy. The browser uses the Windows system proxy by default; set
-# browser_proxy only to force one. driver downloads use HTTPS_PROXY/HTTP_PROXY env vars
-# or download_proxy below.
+# browser_proxy only to force one.
 network:
   browser_proxy: ""             # e.g. http://proxy.company.com:8080
   proxy_bypass: "127.0.0.1;localhost;<local>"
-  download_proxy: ""            # proxy for chromedriver download; empty = env vars

@@ -1,8 +1,8 @@
 """sbtest - automation base for Samsung Internet for Windows (Chromium fork).
 
     sbtest.config      layered configuration (default.yaml < local.yaml < env < CLI)
-    sbtest.browser     launch/attach the browser, profiles, Chromium version, chromedriver
-    sbtest.web         web layer (Selenium): locators, waits, actions, reading, tabs, frames, JS dialogs
+    sbtest.browser     start the browser and attach Playwright to it, profiles, Chromium version
+    sbtest.web         web layer (Playwright): locators, waits, actions, reading, tabs, frames, JS dialogs
     sbtest.native      native layer (pywinauto/UIA): browser UI, prompts, Windows dialogs, Explorer, keys
     sbtest.pages       page objects of Samsung's internal pages (si-* components)
     sbtest.data        test data: builders, loaders, generated files

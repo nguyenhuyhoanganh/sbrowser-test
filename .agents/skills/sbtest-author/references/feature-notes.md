@@ -14,10 +14,17 @@ differently from these notes: report it and let the user verify it, then record 
 
 ## Whole product
 
-- WebDriver URLs are `chrome://...` (`pages.scheme: chrome`); the address bar *shows*
+- **These notes were verified on Samsung Browser 31.0.1.40 with the earlier Selenium web
+  layer.** The web layer is Playwright now (attached over DevTools) and has not run on a
+  Samsung build yet: what a note says about the *product* still holds; what it says about
+  the web layer's limits (background tabs, the home page) has to be checked again - report
+  what differs.
+- URLs opened by `web.open` are `chrome://...` (`pages.scheme: chrome`); the address bar *shows*
   `internet://...` (`pages.display_scheme`, `cfg.display_url(name)` for omnibox asserts).
-  `driver.get("internet://...")` does nothing; typing it in the omnibox (`native.navigate`) works.
-- chromedriver cannot launch the exe (hangs on DevTools) -> `browser.mode: attach` (default).
+  `web.open("internet://...")` does nothing; typing it in the omnibox (`native.navigate`) works.
+- The framework starts the exe itself with `--remote-debugging-port` and Playwright attaches
+  to it; nothing has to match the build's Chromium version. Samsung blocks DevTools on the
+  home page (newtab): never use it as a start page.
 - Fresh profiles may show a "Samsung Browser has been updated." bubble (some starts only):
   nothing waits for it - one quick look after start, then for 10 s every native action first
   closes it if it has shown up (`startup_bubbles` in `config/native_ui.yaml`,
@@ -141,8 +148,8 @@ differently from these notes: report it and let the user verify it, then record 
   "Unpin <name>" and "More options for <name>" (menu: Options, Remove from Samsung Browser,
   Manage add-on, View web permissions). Pinned icon = `ToolbarActionView` named
   "<name>\nHas access to this site"; its popup is a Document readable through UIA.
-- "Options" opens the add-on's options page in a BACKGROUND tab: WebDriver cannot read that
-  chrome-extension:// tab (renderer timeout) - check `native.tab_titles()`, bring it to front
+- "Options" opens the add-on's options page in a BACKGROUND tab: the web layer could not read that
+  chrome-extension:// tab with Selenium (renderer timeout; not tried with Playwright yet) - check `native.tab_titles()`, bring it to front
   by clicking its TabItem and read it with `native.wait_text(...)`.
 
 ## General browsing (prefix GEN)
@@ -152,5 +159,7 @@ differently from these notes: report it and let the user verify it, then record 
   "Open in new window", "Open in Secret mode", "Open in side panel", "Save link as", "Copy link",
   "Share link", "Inspect". "Open in new tab" opens it in the BACKGROUND: the current tab stays.
 - `window.open` popups are windows; they also appear in `web.tabs`.
-- `beforeunload` "Leave site?" is accepted by chromedriver itself (WebDriver spec): it cannot be
-  observed or dismissed -> such cases are `Automated: no`.
+- `beforeunload` "Leave site?": `with web.dialog(accept=False) as d:` around the navigation
+  stays on the page (`d.type == "beforeunload"`), `accept=True` leaves. Proven on plain
+  Chromium (`tests/framework/test_live.py`), not on a Samsung build yet; the page needs a
+  click first (browsers only ask after a user gesture).
